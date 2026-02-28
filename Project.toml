@@ -1,0 +1,9 @@
+name = "AtlanticCloud"
+uuid = "3869560d-4610-43ef-8129-3cc96c3d99f7"
+authors = ["João Pinelo <jp@joaopinelo.com>"]
+version = "0.1.0"
+
+[compat]
+julia = "1.10"
+
+[deps]

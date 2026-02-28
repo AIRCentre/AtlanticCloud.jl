@@ -1,0 +1,3 @@
+module AtlanticCloud
+
+end
