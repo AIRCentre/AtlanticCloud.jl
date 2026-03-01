@@ -16,12 +16,36 @@ const VALID_METRICS = Set([
 	"pressure_hpa",
 ])
 
+"""
+    AtlanticCloudError(message)
+
+Exception thrown by AtlanticCloud when an API request fails.
+
+Catch this type to handle all errors from the package in one place.
+"""
 struct AtlanticCloudError <: Exception
 	message::String
 end
 
 Base.showerror(io::IO, e::AtlanticCloudError) = print(io, "AtlanticCloudError: ", e.message)
 
+"""
+    AtlanticCloudClient(; api_key, base_url)
+
+Client for the AIR Centre Atlantic Cloud API.
+
+The API key is resolved in this order:
+1. Explicit `api_key` keyword argument
+2. `ATLANTICCLOUD_API_KEY` environment variable
+3. Error with registration URL if neither is present
+
+# Example
+```julia
+client = AtlanticCloudClient(api_key="your_key")
+```
+
+Register at: https://services.aircentre.org/access/account
+"""
 struct AtlanticCloudClient
 	base_url::String
 	api_key::String
@@ -48,6 +72,18 @@ struct AtlanticCloudClient
 	end
 end
 
+"""
+    Station
+
+A meteorological station in the AIR Centre network.
+
+# Fields
+- `station_id`: Unique identifier
+- `place`: Human-readable location name
+- `latitude_deg`: Latitude in decimal degrees
+- `longitude_deg`: Longitude in decimal degrees
+- `source`: Data source (e.g. `"IPMA"`, `"RHA"`, `"AIRC"`)
+"""
 struct Station
 	station_id::String
 	place::String
@@ -66,6 +102,25 @@ struct Station
 	end
 end
 
+"""
+    Observation
+
+A single hourly meteorological observation from a station.
+
+# Fields
+- `station_id`: Station identifier
+- `timestamp`: Observation time as `DateTime`
+- `wind_speed_kmh`: Wind speed in km/h
+- `temperature_c`: Air temperature in °C
+- `radiation_kjm2`: Solar radiation in kJ/m²
+- `wind_direction_bin`: Wind direction bin index (integer)
+- `precipitation_accum_mm`: Accumulated precipitation in mm
+- `rel_humidity_pctg`: Relative humidity as percentage
+- `pressure_hpa`: Atmospheric pressure in hPa (may be `nothing`)
+
+All metric fields are `Union{Float64, Nothing}` except `wind_direction_bin`
+which is `Union{Int, Nothing}`.
+"""
 struct Observation
 	station_id::String
 	timestamp::DateTime
@@ -125,6 +180,26 @@ function _build_query(params::Dict{String, String})
 	"?" * join(["$(k)=$(v)" for (k, v) in params], "&")
 end
 
+"""
+    get_stations(client; station_id, source)
+
+Retrieve meteorological stations from the AIR Centre network.
+
+# Arguments
+- `client`: An `AtlanticCloudClient` instance
+- `station_id`: Filter by station ID (optional)
+- `source`: Filter by data source, e.g. `"IPMA"`, `"RHA"` (optional)
+
+# Returns
+`Vector{Station}`
+
+# Example
+```julia
+client = AtlanticCloudClient(api_key="your_key")
+stations = get_stations(client)
+ipma = get_stations(client, source="IPMA")
+```
+"""
 function get_stations(client::AtlanticCloudClient;
 	station_id::Union{String, Nothing} = nothing,
 	source::Union{String, Nothing} = nothing,
@@ -138,6 +213,31 @@ function get_stations(client::AtlanticCloudClient;
 	return [Station(s) for s in parsed.data]
 end
 
+"""
+    get_observations(client, station_id; start_date, end_date, metrics)
+
+Retrieve hourly meteorological observations for a station.
+
+# Arguments
+- `client`: An `AtlanticCloudClient` instance
+- `station_id`: Required station identifier
+- `start_date`: Start of date range as `Date` (optional)
+- `end_date`: End of date range as `Date` (optional)
+- `metrics`: Vector of metric names to include (optional). See `VALID_METRICS`.
+
+# Returns
+`Vector{Observation}`
+
+# Example
+```julia
+using Dates
+client = AtlanticCloudClient(api_key="your_key")
+obs = get_observations(client, "11217160",
+    start_date=Date(2024,1,1),
+    end_date=Date(2024,1,31),
+    metrics=["temperature_c", "wind_speed_kmh"])
+```
+"""
 function get_observations(
 	client::AtlanticCloudClient,
 	station_id::String;
