@@ -6,6 +6,16 @@ using Dates
 
 const DEFAULT_BASE_URL = "https://services.aircentre.org"
 
+const VALID_METRICS = Set([
+	"wind_speed_kmh",
+	"temperature_c",
+	"radiation_kjm2",
+	"wind_direction_bin",
+	"precipitation_accum_mm",
+	"rel_humidity_pctg",
+	"pressure_hpa",
+])
+
 struct AtlanticCloudError <: Exception
 	message::String
 end
@@ -80,7 +90,6 @@ struct Observation
 	end
 end
 
-
 function _get(client::AtlanticCloudClient, path::String)
 	url = client.base_url * path
 	response = HTTP.get(url, ["X-API-Key" => client.api_key])
@@ -105,6 +114,35 @@ function get_stations(client::AtlanticCloudClient;
 	return [Station(s) for s in parsed.data]
 end
 
-export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation
+function get_observations(
+	client::AtlanticCloudClient,
+	station_id::String;
+	start_date::Union{Date, Nothing} = nothing,
+	end_date::Union{Date, Nothing} = nothing,
+	metrics::Union{Vector{String}, Nothing} = nothing,
+)
+	params = Dict{String, String}()
+	params["station_id"] = station_id
+	!isnothing(start_date) && (params["start_date"] = Dates.format(start_date, "yyyy-mm-dd"))
+	!isnothing(end_date) && (params["end_date"] = Dates.format(end_date, "yyyy-mm-dd"))
+
+	if !isnothing(metrics)
+		invalid = setdiff(Set(metrics), VALID_METRICS)
+		if !isempty(invalid)
+			throw(AtlanticCloudError(
+				"Invalid metrics: $(join(invalid, ", ")). " *
+				"Valid options are: $(join(sort(collect(VALID_METRICS)), ", "))",
+			))
+		end
+		params["include_metrics"] = join(metrics, ",")
+	end
+
+	raw = _get(client, "/meteorology/api/v1/observations" * _build_query(params))
+	parsed = JSON3.read(raw)
+	return [Observation(o) for o in parsed.data]
+end
+
+export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation,
+	get_observations, VALID_METRICS
 
 end

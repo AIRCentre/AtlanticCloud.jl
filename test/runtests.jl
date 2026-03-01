@@ -55,4 +55,23 @@ using AtlanticCloud
 
 	end
 
+	@testset "get_observations" begin
+
+		raw = read("test/fixtures/observations.json", String)
+		parsed = AtlanticCloud.JSON3.read(raw)
+		observations = [Observation(o) for o in parsed.data]
+
+		@test length(observations) > 0
+		@test observations[1].station_id == "11217160"
+		@test observations[1].timestamp == DateTime(2024, 1, 1, 0, 0, 0)
+		@test observations[end].timestamp == DateTime(2024, 1, 3, 0, 0, 0)
+
+	end
+
+	@testset "VALID_METRICS" begin
+		@test "temperature_c" in VALID_METRICS
+		@test "pressure_hpa" in VALID_METRICS
+		@test !("invalid_metric" in VALID_METRICS)
+	end
+
 end
