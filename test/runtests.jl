@@ -87,4 +87,31 @@ using AtlanticCloud
 
 	end
 
+	@testset "Integration tests (fixture-based)" begin
+
+		function make_mock_client(fixture_path::String)
+			fixture = read(fixture_path, String)
+			mock_response = (url, headers) -> (body = Vector{UInt8}(fixture),)
+			return AtlanticCloudClient(api_key = "testkey", http_get = mock_response)
+		end
+
+		@testset "get_stations with mock" begin
+			client = make_mock_client("test/fixtures/stations.json")
+			stations = get_stations(client)
+			@test length(stations) > 0
+			@test stations[1] isa Station
+			@test stations[1].station_id == "11217160"
+		end
+
+		@testset "get_observations with mock" begin
+			client = make_mock_client("test/fixtures/observations.json")
+			observations = get_observations(client, "11217160")
+			@test length(observations) > 0
+			@test observations[1] isa Observation
+			@test observations[1].station_id == "11217160"
+			@test observations[1].pressure_hpa === nothing
+		end
+
+	end
+
 end

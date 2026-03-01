@@ -25,10 +25,12 @@ Base.showerror(io::IO, e::AtlanticCloudError) = print(io, "AtlanticCloudError: "
 struct AtlanticCloudClient
 	base_url::String
 	api_key::String
+	http_get::Function
 
 	function AtlanticCloudClient(;
 		base_url::String = DEFAULT_BASE_URL,
 		api_key::String = "",
+		http_get::Function = HTTP.get,
 	)
 		resolved_key = if !isempty(api_key)
 			api_key
@@ -42,7 +44,7 @@ struct AtlanticCloudClient
 			))
 		end
 
-		new(base_url, resolved_key)
+		new(base_url, resolved_key, http_get)
 	end
 end
 
@@ -91,31 +93,31 @@ struct Observation
 end
 
 function _get(client::AtlanticCloudClient, path::String)
-    url = client.base_url * path
-    try
-        response = HTTP.get(url, ["X-API-Key" => client.api_key])
-        return String(response.body)
-    catch e
-        if e isa HTTP.Exceptions.StatusError
-            throw(AtlanticCloudError(
-                "HTTP $(e.status) error for $(path): $(String(e.response.body))"
-            ))
-        else
-            throw(AtlanticCloudError(
-                "Network error for $(path): $(sprint(showerror, e))"
-            ))
-        end
-    end
+	url = client.base_url * path
+	try
+		response = client.http_get(url, ["X-API-Key" => client.api_key])
+		return String(response.body)
+	catch e
+		if e isa HTTP.Exceptions.StatusError
+			throw(AtlanticCloudError(
+				"HTTP $(e.status) error for $(path): $(String(e.response.body))",
+			))
+		else
+			throw(AtlanticCloudError(
+				"Network error for $(path): $(sprint(showerror, e))",
+			))
+		end
+	end
 end
 
 function _parse(raw::String, path::String)
-    try
-        return JSON3.read(raw)
-    catch e
-        throw(AtlanticCloudError(
-            "Failed to parse response from $(path): $(sprint(showerror, e))"
-        ))
-    end
+	try
+		return JSON3.read(raw)
+	catch e
+		throw(AtlanticCloudError(
+			"Failed to parse response from $(path): $(sprint(showerror, e))",
+		))
+	end
 end
 
 function _build_query(params::Dict{String, String})
