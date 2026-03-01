@@ -74,4 +74,17 @@ using AtlanticCloud
 		@test !("invalid_metric" in VALID_METRICS)
 	end
 
+	@testset "Error handling" begin
+
+		@testset "_get HTTP errors" begin
+			client = AtlanticCloudClient(api_key = "invalid")
+			@test_throws AtlanticCloudError get_stations(client)
+		end
+
+		@testset "_parse JSON errors" begin
+			@test_throws AtlanticCloudError AtlanticCloud._parse("not valid json", "/test")
+		end
+
+	end
+
 end

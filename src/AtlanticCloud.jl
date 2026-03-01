@@ -91,9 +91,31 @@ struct Observation
 end
 
 function _get(client::AtlanticCloudClient, path::String)
-	url = client.base_url * path
-	response = HTTP.get(url, ["X-API-Key" => client.api_key])
-	return String(response.body)
+    url = client.base_url * path
+    try
+        response = HTTP.get(url, ["X-API-Key" => client.api_key])
+        return String(response.body)
+    catch e
+        if e isa HTTP.Exceptions.StatusError
+            throw(AtlanticCloudError(
+                "HTTP $(e.status) error for $(path): $(String(e.response.body))"
+            ))
+        else
+            throw(AtlanticCloudError(
+                "Network error for $(path): $(sprint(showerror, e))"
+            ))
+        end
+    end
+end
+
+function _parse(raw::String, path::String)
+    try
+        return JSON3.read(raw)
+    catch e
+        throw(AtlanticCloudError(
+            "Failed to parse response from $(path): $(sprint(showerror, e))"
+        ))
+    end
 end
 
 function _build_query(params::Dict{String, String})
@@ -110,7 +132,7 @@ function get_stations(client::AtlanticCloudClient;
 	!isnothing(source) && (params["source"] = source)
 
 	raw = _get(client, "/meteorology/api/v1/stations" * _build_query(params))
-	parsed = JSON3.read(raw)
+	parsed = _parse(raw, "/meteorology/api/v1/stations")
 	return [Station(s) for s in parsed.data]
 end
 
@@ -138,7 +160,7 @@ function get_observations(
 	end
 
 	raw = _get(client, "/meteorology/api/v1/observations" * _build_query(params))
-	parsed = JSON3.read(raw)
+	parsed = _parse(raw, "/meteorology/api/v1/observations")
 	return [Observation(o) for o in parsed.data]
 end
 
