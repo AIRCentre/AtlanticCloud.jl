@@ -78,26 +78,26 @@ end
 A meteorological station in the AIR Centre network.
 
 # Fields
-- `station_id`: Unique identifier
-- `place`: Human-readable location name
+- `station_id`: Unique identifier (may be `nothing`)
+- `place`: Human-readable location name (may be `nothing`)
 - `latitude_deg`: Latitude in decimal degrees
 - `longitude_deg`: Longitude in decimal degrees
-- `source`: Data source (e.g. `"IPMA"`, `"RHA"`, `"AIRC"`)
+- `source`: Data source, e.g. `"IPMA"`, `"RHA"`, `"AIRC"` (may be `nothing`)
 """
 struct Station
-	station_id::String
-	place::String
+	station_id::Union{String, Nothing}
+	place::Union{String, Nothing}
 	latitude_deg::Float64
 	longitude_deg::Float64
-	source::String
+	source::Union{String, Nothing}
 
 	function Station(obj::JSON3.Object)
 		new(
-			obj[:station_id],
-			obj[:place],
+			haskey(obj, :station_id) && obj[:station_id] !== nothing ? String(obj[:station_id]) : nothing,
+			haskey(obj, :place) && obj[:place] !== nothing ? String(obj[:place]) : nothing,
 			obj[:latitude_deg],
 			obj[:longitude_deg],
-			obj[:source],
+			haskey(obj, :source) && obj[:source] !== nothing ? String(obj[:source]) : nothing,
 		)
 	end
 end
@@ -108,7 +108,7 @@ end
 A single hourly meteorological observation from a station.
 
 # Fields
-- `station_id`: Station identifier
+- `station_id`: Station identifier (may be `nothing`)
 - `timestamp`: Observation time as `DateTime`
 - `wind_speed_kmh`: Wind speed in km/h
 - `temperature_c`: Air temperature in °C
@@ -122,7 +122,7 @@ All metric fields are `Union{Float64, Nothing}` except `wind_direction_bin`
 which is `Union{Int, Nothing}`.
 """
 struct Observation
-	station_id::String
+	station_id::Union{String, Nothing}
 	timestamp::DateTime
 	wind_speed_kmh::Union{Float64, Nothing}
 	temperature_c::Union{Float64, Nothing}
@@ -134,7 +134,7 @@ struct Observation
 
 	function Observation(obj::JSON3.Object)
 		new(
-			obj[:station_id],
+			haskey(obj, :station_id) && obj[:station_id] !== nothing ? String(obj[:station_id]) : nothing,
 			DateTime(obj[:timestamp], dateformat"yyyy-mm-dd HH:MM:SS"),
 			haskey(obj, :wind_speed_kmh) ? Float64(obj[:wind_speed_kmh]) : nothing,
 			haskey(obj, :temperature_c) ? Float64(obj[:temperature_c]) : nothing,

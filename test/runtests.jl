@@ -31,7 +31,42 @@ using AtlanticCloud
 		@test stations[1].longitude_deg ≈ -25.0917
 		@test stations[1].source == "IPMA"
 		@test all(s -> s isa Station, stations)
-		@test all(s -> !isempty(s.station_id), stations)
+		@test all(s -> !isempty(something(s.station_id, "")), stations)
+
+	end
+
+	@testset "Station with nothing fields" begin
+
+		json_null_id = AtlanticCloud.JSON3.read("""
+			{"station_id": null, "place": "Test Place", "latitude_deg": 38.0, "longitude_deg": -9.0, "source": "IPMA"}
+		""")
+		s = Station(json_null_id)
+		@test s.station_id === nothing
+		@test s.place == "Test Place"
+		@test s.source == "IPMA"
+
+		json_null_place = AtlanticCloud.JSON3.read("""
+			{"station_id": "12345", "place": null, "latitude_deg": 38.0, "longitude_deg": -9.0, "source": "IPMA"}
+		""")
+		s2 = Station(json_null_place)
+		@test s2.station_id == "12345"
+		@test s2.place === nothing
+
+		json_null_source = AtlanticCloud.JSON3.read("""
+			{"station_id": "12345", "place": "Test", "latitude_deg": 38.0, "longitude_deg": -9.0, "source": null}
+		""")
+		s3 = Station(json_null_source)
+		@test s3.source === nothing
+
+		json_all_null = AtlanticCloud.JSON3.read("""
+			{"station_id": null, "place": null, "latitude_deg": 38.0, "longitude_deg": -9.0, "source": null}
+		""")
+		s4 = Station(json_all_null)
+		@test s4.station_id === nothing
+		@test s4.place === nothing
+		@test s4.source === nothing
+		@test s4.latitude_deg ≈ 38.0
+		@test s4.longitude_deg ≈ -9.0
 
 	end
 
@@ -52,6 +87,27 @@ using AtlanticCloud
 		@test obs.radiation_kjm2 isa Float64
 		@test obs.wind_direction_bin isa Int
 		@test obs.pressure_hpa === nothing
+
+	end
+
+	@testset "Observation with nothing fields" begin
+
+		json_null_id = AtlanticCloud.JSON3.read("""
+			{"station_id": null, "timestamp": "2024-01-01 00:00:00", "temperature_c": 15.0}
+		""")
+		o = Observation(json_null_id)
+		@test o.station_id === nothing
+		@test o.timestamp == DateTime(2024, 1, 1, 0, 0, 0)
+		@test o.temperature_c == 15.0
+
+		json_null_id_no_metrics = AtlanticCloud.JSON3.read("""
+			{"station_id": null, "timestamp": "2024-01-01 12:00:00"}
+		""")
+		o2 = Observation(json_null_id_no_metrics)
+		@test o2.station_id === nothing
+		@test o2.timestamp == DateTime(2024, 1, 1, 12, 0, 0)
+		@test o2.temperature_c === nothing
+		@test o2.pressure_hpa === nothing
 
 	end
 
