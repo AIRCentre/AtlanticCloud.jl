@@ -240,9 +240,11 @@ Retrieve hourly meteorological observations for a station.
 # Arguments
 - `client`: An `AtlanticCloudClient` instance
 - `station_id`: Required station identifier
-- `start_date`: Start of date range as `Date` (optional)
-- `end_date`: End of date range as `Date` (optional)
+- `start_date`: Start of date range as `Date` or `DateTime` (optional)
+- `end_date`: End of date range as `Date` or `DateTime` (optional)
 - `metrics`: Vector of metric names to include (optional). See `VALID_METRICS`.
+
+Throws `ArgumentError` if `start_date` is after `end_date`.
 
 # Returns
 `Vector{Observation}`
@@ -260,10 +262,19 @@ obs = get_observations(client, "11217160",
 function get_observations(
 	client::AtlanticCloudClient,
 	station_id::String;
-	start_date::Union{Date, Nothing} = nothing,
-	end_date::Union{Date, Nothing} = nothing,
+	start_date::Union{Date, DateTime, Nothing} = nothing,
+	end_date::Union{Date, DateTime, Nothing} = nothing,
 	metrics::Union{Vector{String}, Nothing} = nothing,
 )
+	# Validate date range
+	if !isnothing(start_date) && !isnothing(end_date)
+		if Date(start_date) > Date(end_date)
+			throw(ArgumentError(
+				"start_date ($(Date(start_date))) is after end_date ($(Date(end_date)))"
+			))
+		end
+	end
+
 	params = Dict{String, String}()
 	params["station_id"] = station_id
 	!isnothing(start_date) && (params["start_date"] = Dates.format(start_date, "yyyy-mm-dd"))

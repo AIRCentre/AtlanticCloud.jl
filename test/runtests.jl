@@ -128,6 +128,44 @@ include("test_helpers.jl")
 
 	end
 
+	@testset "get_observations — date parameters" begin
+
+		client = make_mock_client("test/fixtures/observations.json")
+
+		# Date parameters (already supported, verify still works)
+		obs = get_observations(client, "11217160",
+			start_date=Date(2024, 1, 1), end_date=Date(2024, 1, 3))
+		@test length(obs) > 0
+
+		# DateTime parameters
+		obs2 = get_observations(client, "11217160",
+			start_date=DateTime(2024, 1, 1), end_date=DateTime(2024, 1, 3))
+		@test length(obs2) > 0
+
+		# Mixed Date and DateTime
+		obs3 = get_observations(client, "11217160",
+			start_date=Date(2024, 1, 1), end_date=DateTime(2024, 1, 3, 12, 0, 0))
+		@test length(obs3) > 0
+
+		# Only start_date as DateTime
+		obs4 = get_observations(client, "11217160",
+			start_date=DateTime(2024, 1, 1, 6, 30, 0))
+		@test length(obs4) > 0
+
+		# Validation: start_date > end_date throws ArgumentError
+		@test_throws ArgumentError get_observations(client, "11217160",
+			start_date=Date(2024, 2, 1), end_date=Date(2024, 1, 1))
+
+		@test_throws ArgumentError get_observations(client, "11217160",
+			start_date=DateTime(2024, 2, 1), end_date=DateTime(2024, 1, 1))
+
+		# Same date is valid (not an error)
+		obs5 = get_observations(client, "11217160",
+			start_date=Date(2024, 1, 1), end_date=Date(2024, 1, 1))
+		@test length(obs5) > 0
+
+	end
+
 	@testset "VALID_METRICS" begin
 		@test "temperature_c" in VALID_METRICS
 		@test "pressure_hpa" in VALID_METRICS
