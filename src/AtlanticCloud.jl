@@ -3,6 +3,8 @@ module AtlanticCloud
 using HTTP
 using JSON3
 using Dates
+using DataFrames
+import GeoInterface as GI
 
 const DEFAULT_BASE_URL = "https://services.aircentre.org"
 
@@ -77,6 +79,10 @@ end
 
 A meteorological station in the AIR Centre network.
 
+Implements [`GeoInterface.jl`](https://github.com/JuliaGeo/GeoInterface.jl)
+`PointTrait`, so stations can be used directly with GeoMakie, GeometryOps,
+GeoJSON.jl, and any other JuliaGeo-compatible package.
+
 # Fields
 - `station_id`: Unique identifier (may be `nothing`)
 - `place`: Human-readable location name (may be `nothing`)
@@ -101,6 +107,19 @@ struct Station
 		)
 	end
 end
+
+# -- GeoInterface.jl trait implementation for Station --
+# Stations are 2D point geometries in WGS84 (EPSG:4326).
+# Coordinate order follows GeoInterface convention: index 1 = X (longitude), index 2 = Y (latitude).
+
+GI.isgeometry(::Type{Station}) = true
+GI.geomtrait(::Station) = GI.PointTrait()
+GI.ncoord(::GI.PointTrait, ::Station) = 2
+GI.getcoord(::GI.PointTrait, s::Station, i::Int) = i == 1 ? s.longitude_deg : s.latitude_deg
+GI.ngeom(::GI.PointTrait, ::Station) = 0
+GI.getgeom(::GI.PointTrait, ::Station, i) = nothing
+GI.x(::GI.PointTrait, s::Station) = s.longitude_deg
+GI.y(::GI.PointTrait, s::Station) = s.latitude_deg
 
 """
     Observation
@@ -266,7 +285,63 @@ function get_observations(
 	return [Observation(o) for o in parsed.data]
 end
 
+"""
+    to_dataframe(stations::Vector{Station}) -> DataFrame
+
+Convert a vector of `Station` objects to a `DataFrame`.
+
+Columns: `station_id`, `place`, `latitude_deg`, `longitude_deg`, `source`.
+Fields that are `nothing` are converted to `missing`.
+
+# Example
+```julia
+client = AtlanticCloudClient(api_key="your_key")
+stations = get_stations(client)
+df = to_dataframe(stations)
+```
+"""
+function to_dataframe(stations::Vector{Station})
+	DataFrame(
+		station_id = [something(s.station_id, missing) for s in stations],
+		place = [something(s.place, missing) for s in stations],
+		latitude_deg = [s.latitude_deg for s in stations],
+		longitude_deg = [s.longitude_deg for s in stations],
+		source = [something(s.source, missing) for s in stations],
+	)
+end
+
+"""
+    to_dataframe(observations::Vector{Observation}) -> DataFrame
+
+Convert a vector of `Observation` objects to a `DataFrame`.
+
+Columns: `station_id`, `timestamp`, and one column per metric field.
+Fields that are `nothing` are converted to `missing`.
+
+# Example
+```julia
+client = AtlanticCloudClient(api_key="your_key")
+obs = get_observations(client, "11217160")
+df = to_dataframe(obs)
+```
+"""
+function to_dataframe(observations::Vector{Observation})
+	_m(v) = v === nothing ? missing : v
+
+	DataFrame(
+		station_id = [_m(o.station_id) for o in observations],
+		timestamp = [o.timestamp for o in observations],
+		wind_speed_kmh = [_m(o.wind_speed_kmh) for o in observations],
+		temperature_c = [_m(o.temperature_c) for o in observations],
+		radiation_kjm2 = [_m(o.radiation_kjm2) for o in observations],
+		wind_direction_bin = [_m(o.wind_direction_bin) for o in observations],
+		precipitation_accum_mm = [_m(o.precipitation_accum_mm) for o in observations],
+		rel_humidity_pctg = [_m(o.rel_humidity_pctg) for o in observations],
+		pressure_hpa = [_m(o.pressure_hpa) for o in observations],
+	)
+end
+
 export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation,
-	get_observations, VALID_METRICS
+	get_observations, VALID_METRICS, to_dataframe
 
 end

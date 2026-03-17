@@ -1,6 +1,8 @@
 using Test
 using Dates
+using DataFrames
 using AtlanticCloud
+import GeoInterface as GI
 
 include("test_helpers.jl")
 
@@ -270,6 +272,148 @@ include("test_helpers.jl")
 			stations = get_stations(client)
 			@test length(stations) == 6
 		end
+
+	end
+
+	@testset "GeoInterface traits — Station" begin
+
+		raw = read("test/fixtures/stations_multi.json", String)
+		parsed = AtlanticCloud.JSON3.read(raw)
+		stations = [Station(s) for s in parsed.data]
+		s = stations[1]  # Santa Maria, Azores: lon=-25.0917, lat=36.9542
+
+		# Core trait
+		@test GI.isgeometry(Station) == true
+		@test GI.geomtrait(s) == GI.PointTrait()
+		@test GI.ncoord(GI.PointTrait(), s) == 2
+		@test GI.ngeom(GI.PointTrait(), s) == 0
+		@test GI.getgeom(GI.PointTrait(), s, 1) === nothing
+
+		# Coordinate access (index 1 = X/lon, index 2 = Y/lat)
+		@test GI.getcoord(GI.PointTrait(), s, 1) ≈ -25.0917
+		@test GI.getcoord(GI.PointTrait(), s, 2) ≈ 36.9542
+
+		# Convenience accessors
+		@test GI.x(GI.PointTrait(), s) ≈ -25.0917
+		@test GI.y(GI.PointTrait(), s) ≈ 36.9542
+
+		# check_geointerface_point helper
+		failures = check_geointerface_point(GI, s, -25.0917, 36.9542)
+		@test isempty(failures)
+
+		# Verify a different station (Lisboa: lon=-9.149722, lat=38.719078)
+		lisboa = stations[5]
+		@test GI.x(GI.PointTrait(), lisboa) ≈ -9.149722
+		@test GI.y(GI.PointTrait(), lisboa) ≈ 38.719078
+
+		# Verify all stations are valid geometries
+		@test all(s -> GI.geomtrait(s) == GI.PointTrait(), stations)
+
+	end
+
+	@testset "to_dataframe — Station" begin
+
+		client = make_mock_client("test/fixtures/stations_multi.json")
+		stations = get_stations(client)
+		df = to_dataframe(stations)
+
+		@test df isa DataFrame
+		@test nrow(df) == 6
+		@test ncol(df) == 5
+		@test names(df) == ["station_id", "place", "latitude_deg", "longitude_deg", "source"]
+
+		# Verify types
+		@test eltype(df.latitude_deg) == Float64
+		@test eltype(df.longitude_deg) == Float64
+
+		# Verify data
+		@test df.station_id[1] == "11217160"
+		@test df.latitude_deg[1] ≈ 36.9542
+
+		# Verify nothing → missing conversion for nullable fields
+		@test nonmissingtype(eltype(df.station_id)) == String
+		@test nonmissingtype(eltype(df.place)) == String
+		@test nonmissingtype(eltype(df.source)) == String
+
+	end
+
+	@testset "to_dataframe — Station with nothing fields" begin
+
+		json = AtlanticCloud.JSON3.read("""
+			{"data": [
+				{"station_id": null, "place": "Test", "latitude_deg": 38.0, "longitude_deg": -9.0, "source": "IPMA"},
+				{"station_id": "12345", "place": null, "latitude_deg": 39.0, "longitude_deg": -8.0, "source": null}
+			]}
+		""")
+		stations = [Station(s) for s in json.data]
+		df = to_dataframe(stations)
+
+		@test nrow(df) == 2
+		@test ismissing(df.station_id[1])
+		@test df.place[1] == "Test"
+		@test df.station_id[2] == "12345"
+		@test ismissing(df.place[2])
+		@test ismissing(df.source[2])
+
+	end
+
+	@testset "to_dataframe — Observation" begin
+
+		client = make_mock_client("test/fixtures/observations_multi.json")
+		obs = get_observations(client, "any")
+		df = to_dataframe(obs)
+
+		@test df isa DataFrame
+		@test nrow(df) == 9
+		@test ncol(df) == 9
+
+		expected_cols = ["station_id", "timestamp", "wind_speed_kmh", "temperature_c",
+			"radiation_kjm2", "wind_direction_bin", "precipitation_accum_mm",
+			"rel_humidity_pctg", "pressure_hpa"]
+		@test names(df) == expected_cols
+
+		# timestamp stays DateTime (non-nullable)
+		@test eltype(df.timestamp) == DateTime
+
+		# Verify nothing → missing for metrics
+		# 1200535 (rows 4–6) has pressure
+		@test !ismissing(df.pressure_hpa[4])
+		@test df.pressure_hpa[4] ≈ 1013.2
+
+		# 11217160 (rows 1–3) has no pressure
+		@test ismissing(df.pressure_hpa[1])
+
+		# 1200533 (rows 7–9) has only temperature and humidity
+		@test !ismissing(df.temperature_c[7])
+		@test ismissing(df.wind_speed_kmh[7])
+		@test ismissing(df.wind_direction_bin[7])
+
+	end
+
+	@testset "to_dataframe — empty vectors" begin
+
+		df_stations = to_dataframe(Station[])
+		@test df_stations isa DataFrame
+		@test nrow(df_stations) == 0
+		@test ncol(df_stations) == 5
+
+		df_obs = to_dataframe(Observation[])
+		@test df_obs isa DataFrame
+		@test nrow(df_obs) == 0
+		@test ncol(df_obs) == 9
+
+	end
+
+	@testset "to_dataframe — check_dataframe helper" begin
+
+		client = make_mock_client("test/fixtures/stations_multi.json")
+		stations = get_stations(client)
+		df = to_dataframe(stations)
+
+		failures = check_dataframe(df,
+			[:station_id, :place, :latitude_deg, :longitude_deg, :source],
+			6)
+		@test isempty(failures)
 
 	end
 
