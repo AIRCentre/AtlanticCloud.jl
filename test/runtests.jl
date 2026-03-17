@@ -2,6 +2,8 @@ using Test
 using Dates
 using AtlanticCloud
 
+include("test_helpers.jl")
+
 @testset "AtlanticCloud" begin
 
 	@testset "AtlanticCloudClient" begin
@@ -145,12 +147,6 @@ using AtlanticCloud
 
 	@testset "Integration tests (fixture-based)" begin
 
-		function make_mock_client(fixture_path::String)
-			fixture = read(fixture_path, String)
-			mock_response = (url, headers) -> (body = Vector{UInt8}(fixture),)
-			return AtlanticCloudClient(api_key = "testkey", http_get = mock_response)
-		end
-
 		@testset "get_stations with mock" begin
 			client = make_mock_client("test/fixtures/stations.json")
 			stations = get_stations(client)
@@ -166,6 +162,113 @@ using AtlanticCloud
 			@test observations[1] isa Observation
 			@test observations[1].station_id == "11217160"
 			@test observations[1].pressure_hpa === nothing
+		end
+
+	end
+
+	@testset "Multi-station fixtures" begin
+
+		@testset "stations_multi.json" begin
+			raw = read("test/fixtures/stations_multi.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			stations = [Station(s) for s in parsed.data]
+
+			@test length(stations) == 6
+			@test all(s -> s isa Station, stations)
+
+			# Verify geographic spread
+			ids = [s.station_id for s in stations]
+			@test "11217160" in ids   # Azores
+			@test "1200521" in ids    # Madeira
+			@test "1200535" in ids    # Mainland
+
+			# Verify source diversity
+			sources = Set(s.source for s in stations)
+			@test "IPMA" in sources
+			@test "RHA" in sources
+			@test "DSCIG" in sources
+		end
+
+		@testset "observations_multi.json" begin
+			raw = read("test/fixtures/observations_multi.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			observations = [Observation(o) for o in parsed.data]
+
+			@test length(observations) == 9  # 3 stations × 3 hours
+
+			# Verify multiple stations present
+			station_ids = Set(o.station_id for o in observations)
+			@test length(station_ids) == 3
+			@test "11217160" in station_ids
+			@test "1200535" in station_ids
+			@test "1200533" in station_ids
+
+			# Verify varied metric coverage
+			# 1200535 has pressure_hpa
+			lisboa_obs = filter(o -> o.station_id == "1200535", observations)
+			@test all(o -> o.pressure_hpa !== nothing, lisboa_obs)
+
+			# 11217160 has no pressure
+			azores_obs = filter(o -> o.station_id == "11217160", observations)
+			@test all(o -> o.pressure_hpa === nothing, azores_obs)
+
+			# 1200533 has only temperature and humidity
+			sagres_obs = filter(o -> o.station_id == "1200533", observations)
+			@test all(o -> o.temperature_c !== nothing, sagres_obs)
+			@test all(o -> o.wind_speed_kmh === nothing, sagres_obs)
+		end
+
+		@testset "observations_empty.json" begin
+			raw = read("test/fixtures/observations_empty.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			observations = [Observation(o) for o in parsed.data]
+
+			@test length(observations) == 0
+		end
+
+	end
+
+	@testset "Multi-mock client" begin
+
+		@testset "per-station fixture routing" begin
+			client = make_multi_mock_client(
+				station_fixtures=Dict(
+					"11217160" => "test/fixtures/observations.json",
+				),
+				default_fixture="test/fixtures/observations_empty.json",
+			)
+
+			# Known station returns its fixture
+			obs = get_observations(client, "11217160")
+			@test length(obs) == 49
+			@test obs[1].station_id == "11217160"
+
+			# Unknown station returns empty default
+			obs_empty = get_observations(client, "UNKNOWN")
+			@test length(obs_empty) == 0
+		end
+
+		@testset "error station handling" begin
+			client = make_multi_mock_client(
+				default_fixture="test/fixtures/observations_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+
+			# Error station triggers AtlanticCloudError
+			@test_throws AtlanticCloudError get_observations(client, "BADSTATION")
+
+			# Non-error station still works
+			obs = get_observations(client, "GOODSTATION")
+			@test length(obs) == 0
+		end
+
+		@testset "stations endpoint (no station_id)" begin
+			client = make_multi_mock_client(
+				default_fixture="test/fixtures/stations_multi.json",
+			)
+
+			stations = get_stations(client)
+			@test length(stations) == 6
 		end
 
 	end
