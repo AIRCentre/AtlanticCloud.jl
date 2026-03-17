@@ -297,6 +297,82 @@ function get_observations(
 end
 
 """
+    get_observations_bulk(client, station_ids; start_date, end_date, metrics, on_error, progress)
+
+Fetch observations for multiple stations, returning a combined `Vector{Observation}`.
+
+The API requires one station per request, so this function loops internally and
+concatenates the results. All filter parameters are passed through to `get_observations`.
+
+# Arguments
+- `client`: An `AtlanticCloudClient` instance
+- `station_ids`: Vector of station identifiers to fetch
+- `start_date`: Start of date range as `Date` or `DateTime` (optional)
+- `end_date`: End of date range as `Date` or `DateTime` (optional)
+- `metrics`: Vector of metric names to include (optional)
+- `on_error`: Error handling mode (default `:warn`)
+  - `:warn` — log a warning, skip the station, continue
+  - `:throw` — re-raise immediately (fail-fast)
+  - `:skip` — silently skip failed stations
+- `progress`: Log progress every 10 stations (default `true`)
+
+# Returns
+`Vector{Observation}`
+
+# Example
+```julia
+client = AtlanticCloudClient(api_key="your_key")
+stations = get_stations(client)
+ids = [s.station_id for s in stations]
+obs = get_observations_bulk(client, ids,
+    start_date=Date(2024, 1, 1),
+    end_date=Date(2024, 1, 31))
+```
+"""
+function get_observations_bulk(
+	client::AtlanticCloudClient,
+	station_ids::Vector{String};
+	start_date::Union{Date, DateTime, Nothing} = nothing,
+	end_date::Union{Date, DateTime, Nothing} = nothing,
+	metrics::Union{Vector{String}, Nothing} = nothing,
+	on_error::Symbol = :warn,
+	progress::Bool = true,
+)
+	if !(on_error in (:warn, :throw, :skip))
+		throw(ArgumentError(
+			"on_error must be :warn, :throw, or :skip, got :$on_error"
+		))
+	end
+
+	results = Observation[]
+	n = length(station_ids)
+
+	for (i, sid) in enumerate(station_ids)
+		if progress && (i == 1 || i % 10 == 0 || i == n)
+			@info "Fetching observations" station=i total=n station_id=sid
+		end
+
+		try
+			obs = get_observations(client, sid;
+				start_date=start_date, end_date=end_date, metrics=metrics)
+			append!(results, obs)
+		catch e
+			if !(e isa AtlanticCloudError)
+				rethrow(e)
+			end
+			if on_error == :throw
+				rethrow(e)
+			elseif on_error == :warn
+				@warn "Failed to fetch observations" station_id=sid error=e.message
+			end
+			# :skip does nothing
+		end
+	end
+
+	return results
+end
+
+"""
     to_dataframe(stations::Vector{Station}) -> DataFrame
 
 Convert a vector of `Station` objects to a `DataFrame`.
@@ -353,6 +429,6 @@ function to_dataframe(observations::Vector{Observation})
 end
 
 export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation,
-	get_observations, VALID_METRICS, to_dataframe
+	get_observations, get_observations_bulk, VALID_METRICS, to_dataframe
 
 end

@@ -313,6 +313,111 @@ include("test_helpers.jl")
 
 	end
 
+	@testset "get_observations_bulk" begin
+
+		@testset "basic multi-station fetch" begin
+			client = make_multi_mock_client(
+				station_fixtures=Dict(
+					"11217160" => "test/fixtures/observations.json",
+					"1200535" => "test/fixtures/observations_multi.json",
+				),
+				default_fixture="test/fixtures/observations_empty.json",
+			)
+
+			obs = get_observations_bulk(client,
+				["11217160", "1200535", "UNKNOWN"],
+				progress=false)
+
+			# 49 from observations.json + 9 from observations_multi.json + 0 from empty
+			@test length(obs) == 58
+			@test all(o -> o isa Observation, obs)
+
+			# Verify both stations present
+			ids = Set(o.station_id for o in obs)
+			@test "11217160" in ids
+			@test "1200535" in ids
+		end
+
+		@testset "empty station list" begin
+			client = make_mock_client("test/fixtures/observations.json")
+			obs = get_observations_bulk(client, String[], progress=false)
+			@test length(obs) == 0
+		end
+
+		@testset "passes filter parameters" begin
+			client = make_multi_mock_client(
+				station_fixtures=Dict(
+					"11217160" => "test/fixtures/observations.json",
+				),
+				default_fixture="test/fixtures/observations_empty.json",
+			)
+
+			# These filters don't actually change the mock response,
+			# but verify the call doesn't error with parameters
+			obs = get_observations_bulk(client, ["11217160"],
+				start_date=Date(2024, 1, 1),
+				end_date=Date(2024, 1, 3),
+				metrics=["temperature_c"],
+				progress=false)
+			@test length(obs) > 0
+		end
+
+		@testset "on_error = :warn (default)" begin
+			client = make_multi_mock_client(
+				station_fixtures=Dict(
+					"11217160" => "test/fixtures/observations.json",
+				),
+				default_fixture="test/fixtures/observations_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+
+			# Should warn but continue, returning data from good stations
+			obs = get_observations_bulk(client,
+				["11217160", "BADSTATION", "11217160"],
+				progress=false)
+			@test length(obs) == 98  # 49 + 0 (skipped) + 49
+		end
+
+		@testset "on_error = :throw" begin
+			client = make_multi_mock_client(
+				default_fixture="test/fixtures/observations_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+
+			@test_throws AtlanticCloudError get_observations_bulk(client,
+				["BADSTATION"],
+				on_error=:throw,
+				progress=false)
+		end
+
+		@testset "on_error = :skip" begin
+			client = make_multi_mock_client(
+				station_fixtures=Dict(
+					"11217160" => "test/fixtures/observations.json",
+				),
+				default_fixture="test/fixtures/observations_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+
+			# Should silently skip, no warning
+			obs = get_observations_bulk(client,
+				["BADSTATION", "11217160"],
+				on_error=:skip,
+				progress=false)
+			@test length(obs) == 49
+		end
+
+		@testset "invalid on_error value" begin
+			client = make_mock_client("test/fixtures/observations.json")
+
+			@test_throws ArgumentError get_observations_bulk(client,
+				["11217160"],
+				on_error=:invalid,
+				progress=false)
+		end
+
+	end
+
 	@testset "GeoInterface traits — Station" begin
 
 		raw = read("test/fixtures/stations_multi.json", String)
