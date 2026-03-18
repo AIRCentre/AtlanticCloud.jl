@@ -4,7 +4,7 @@
 
 The figure below demonstrates the package's core capabilities: station discovery, bulk observation retrieval, and DataFrame conversion — all visualised with [CairoMakie.jl](https://github.com/MakieOrg/Makie.jl).
 
-![Atlantic Weather Showcase](../assets/atlantic_weather.png)
+![Atlantic Weather Showcase](assets/atlantic_weather.png)
 
 **Panel 1 — Station network.** All 342 stations plotted by longitude and latitude, coloured by data source (IPMA, RHA, DSCIG, AIRC, AJAM, TER). Red stars mark the representative stations used in the time series below.
 

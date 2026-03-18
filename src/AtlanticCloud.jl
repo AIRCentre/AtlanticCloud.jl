@@ -8,6 +8,15 @@ import GeoInterface as GI
 
 const DEFAULT_BASE_URL = "https://services.aircentre.org"
 
+"""
+    VALID_METRICS
+
+Set of valid metric names that can be passed to `get_observations` and
+`get_observations_bulk` via the `metrics` keyword argument.
+
+Valid values: `wind_speed_kmh`, `temperature_c`, `radiation_kjm2`,
+`wind_direction_bin`, `precipitation_accum_mm`, `rel_humidity_pctg`, `pressure_hpa`.
+"""
 const VALID_METRICS = Set([
 	"wind_speed_kmh",
 	"temperature_c",
