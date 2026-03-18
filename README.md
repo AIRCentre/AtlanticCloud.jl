@@ -1,5 +1,7 @@
 # AtlanticCloud.jl
 [![CI](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml)
+[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://aircentre.github.io/AtlanticCloud.jl/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological station data and observations across the Atlantic region.
 
