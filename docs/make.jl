@@ -12,7 +12,7 @@ makedocs(
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         canonical = "https://AIRCentre.github.io/AtlanticCloud.jl",
-        assets = [asset("assets/favicon.png", class=:ico)],
+        assets = [asset("assets/favicon.ico")],
     ),
     authors = "João Pinelo <jp@joaopinelo.com>",
     repo = Documenter.Remotes.GitHub("AIRCentre", "AtlanticCloud.jl"),
