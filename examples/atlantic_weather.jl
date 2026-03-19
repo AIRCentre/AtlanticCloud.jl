@@ -1,8 +1,8 @@
 # examples/atlantic_weather.jl
 #
 # Atlantic Weather Showcase — demonstrates AtlanticCloud.jl capabilities
-# Produces a multi-panel figure showing the station network, data completeness,
-# and temperature time series across the Atlantic region.
+# Produces a four-panel publication-quality figure showing the station network,
+# multi-year temperature record, diurnal climatology, and hourly resolution.
 #
 # Run from the examples/ directory:
 #   julia --project=. atlantic_weather.jl
@@ -12,7 +12,9 @@
 using AtlanticCloud
 using DataFrames
 using CairoMakie
+using GeoMakie
 using Dates
+using Statistics
 
 # ---------------------------------------------------------------------------
 # 1. Fetch station data
@@ -27,33 +29,38 @@ df_stations = to_dataframe(stations)
 println("  $(nrow(df_stations)) stations loaded")
 
 # ---------------------------------------------------------------------------
-# 2. Select representative stations for time series
-#    Pick stations across the geographic spread with good data coverage
+# 2. Select representative stations
 # ---------------------------------------------------------------------------
 
-# Candidates: one per region, IPMA source (most reliable coverage)
 representative_ids = String[]
 representative_labels = String[]
+representative_short = String[]
 
-# Find one Azores station (lon < -20)
-azores = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg < -20 && !ismissing(r.source) && r.source == "IPMA", df_stations)
+# Azores (lon < -20)
+azores = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg < -20 &&
+    !ismissing(r.source) && r.source == "IPMA", df_stations)
 if nrow(azores) > 0
     push!(representative_ids, azores.station_id[1])
     push!(representative_labels, "Azores: $(azores.place[1])")
+    push!(representative_short, "Azores")
 end
 
-# Find one Madeira station (-20 < lon < -14)
-madeira = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg > -20 && r.longitude_deg < -14 && !ismissing(r.source) && r.source == "IPMA", df_stations)
+# Madeira (-20 < lon < -14)
+madeira = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg > -20 &&
+    r.longitude_deg < -14 && !ismissing(r.source) && r.source == "IPMA", df_stations)
 if nrow(madeira) > 0
     push!(representative_ids, madeira.station_id[1])
     push!(representative_labels, "Madeira: $(madeira.place[1])")
+    push!(representative_short, "Madeira")
 end
 
-# Find one mainland station (lon > -14)
-mainland = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg > -14 && !ismissing(r.source) && r.source == "IPMA", df_stations)
+# Mainland (lon > -14)
+mainland = filter(r -> !ismissing(r.longitude_deg) && r.longitude_deg > -14 &&
+    !ismissing(r.source) && r.source == "IPMA", df_stations)
 if nrow(mainland) > 0
     push!(representative_ids, mainland.station_id[1])
     push!(representative_labels, "Mainland: $(mainland.place[1])")
+    push!(representative_short, "Mainland")
 end
 
 println("  Representative stations: $(length(representative_ids))")
@@ -62,26 +69,63 @@ for (id, label) in zip(representative_ids, representative_labels)
 end
 
 # ---------------------------------------------------------------------------
-# 3. Fetch observations for representative stations (last 30 days)
+# 3. Fetch full record in 6-month chunks
+#    The API limits queries to a maximum of 6 months per request.
 # ---------------------------------------------------------------------------
 
-end_date = Date(2024, 12, 31)
-start_date = Date(2024, 12, 1)
+println("Fetching full observation record in 6-month chunks...")
+all_obs = Observation[]
 
-println("Fetching observations ($start_date to $end_date)...")
-obs = get_observations_bulk(client, representative_ids,
-    start_date=start_date,
-    end_date=end_date,
-    metrics=["temperature_c"],
-    progress=true)
-df_obs = to_dataframe(obs)
-println("  $(nrow(df_obs)) observations loaded")
+# The API limits queries to a maximum of 6 months per request.
+fetch_ranges = [
+    (Date(2022, 1, 1), Date(2022, 3, 31)),
+    (Date(2022, 4, 1), Date(2022, 6, 30)),
+    (Date(2022, 7, 1), Date(2022, 9, 30)),
+    (Date(2022, 10, 1), Date(2022, 12, 31)),
+    (Date(2023, 1, 1), Date(2023, 3, 31)),
+    (Date(2023, 4, 1), Date(2023, 6, 30)),
+    (Date(2023, 7, 1), Date(2023, 9, 30)),
+    (Date(2023, 10, 1), Date(2023, 12, 31)),
+    (Date(2024, 1, 1), Date(2024, 3, 31)),
+    (Date(2024, 4, 1), Date(2024, 6, 30)),
+    (Date(2024, 7, 1), Date(2024, 9, 30)),
+    (Date(2024, 10, 1), Date(2024, 12, 31)),
+    (Date(2025, 1, 1), Date(2025, 3, 31)),
+    (Date(2025, 4, 1), Date(2025, 6, 30)),
+    (Date(2025, 7, 1), Date(2025, 9, 30)),
+    (Date(2025, 10, 1), Date(2025, 12, 31)),
+    (Date(2026, 1, 1), Date(2026, 3, 18)),
+]
+
+for (start_d, end_d) in fetch_ranges
+    println("  Fetching $start_d to $end_d...")
+    chunk = get_observations_bulk(client, representative_ids,
+        start_date=start_d,
+        end_date=end_d,
+        metrics=["temperature_c"],
+        progress=false)
+    append!(all_obs, chunk)
+    println("    $(length(chunk)) observations")
+end
+
+df_obs = to_dataframe(all_obs)
+println("  Total: $(nrow(df_obs)) observations")
 
 if nrow(df_obs) == 0
-    println("WARNING: No observations returned. Try a different date range.")
-    println("  The API may not have data for the requested period.")
-    println("  Continuing with station map only...")
+    error("No observations returned. Check API key and station availability.")
 end
+
+# Add helper columns
+df_obs.date = Date.(df_obs.timestamp)
+df_obs.hour = hour.(df_obs.timestamp)
+df_obs.month_num = month.(df_obs.timestamp)
+df_obs.year = year.(df_obs.timestamp)
+
+# Date range of the data
+date_min = minimum(df_obs.date)
+date_max = maximum(df_obs.date)
+years_span = round((date_max - date_min).value / 365.25, digits=1)
+println("  Date range: $date_min to $date_max ($years_span years)")
 
 # ---------------------------------------------------------------------------
 # 4. Build the figure
@@ -89,99 +133,145 @@ end
 
 println("Building figure...")
 
-fig = Figure(size=(1200, 1400), fontsize=14)
+colors = Makie.wong_colors()
+fig = Figure(size=(1400, 1800), fontsize=13)
 
-# --- Panel 1: Station network map (lon/lat scatter) ---
+# --- Panel 1: Station map with coastlines ---
 
-ax1 = Axis(fig[1, 1],
+ax1 = GeoAxis(fig[1, 1],
     title="AIR Centre Atlantic Cloud — Station Network",
-    xlabel="Longitude (°)",
-    ylabel="Latitude (°)",
-    aspect=DataAspect(),
+    dest="+proj=merc",
+    limits=(-33, -5, 31, 43),
 )
 
-# Colour by source
-sources = unique(skipmissing(df_stations.source))
+# Coastlines and land
+poly!(ax1, GeoMakie.land(); color=:grey90, strokecolor=:grey50, strokewidth=0.5)
+
+# All stations by source
+sources = sort(collect(Set(skipmissing(df_stations.source))))
 source_colors = Dict(zip(sources, Makie.wong_colors()[1:length(sources)]))
 
 for src in sources
     subset = filter(r -> !ismissing(r.source) && r.source == src, df_stations)
     scatter!(ax1, subset.longitude_deg, subset.latitude_deg,
         label=src,
-        markersize=6,
+        markersize=5,
         color=source_colors[src],
     )
 end
 
-# Mark representative stations
-for (id, label) in zip(representative_ids, representative_labels)
+# Representative stations (red stars with legend entry)
+for (i, (id, short)) in enumerate(zip(representative_ids, representative_short))
     row = filter(r -> !ismissing(r.station_id) && r.station_id == id, df_stations)
     if nrow(row) > 0
         scatter!(ax1, [row.longitude_deg[1]], [row.latitude_deg[1]],
             marker=:star5,
-            markersize=18,
+            markersize=16,
             color=:red,
             strokewidth=1,
             strokecolor=:black,
+            label=(i == 1 ? "Representative" : nothing),
         )
     end
 end
 
 axislegend(ax1, position=:lb)
 
-# --- Panel 2: Temperature time series ---
+# --- Panel 2: Full multi-year daily mean temperature ---
 
 ax2 = Axis(fig[2, 1],
-    title="Hourly Temperature — December 2024",
+    title="Daily Mean Temperature — $date_min to $date_max ($years_span years)",
     xlabel="Date",
     ylabel="Temperature (°C)",
 )
 
-has_timeseries = false
-colors = Makie.wong_colors()
 for (i, (id, label)) in enumerate(zip(representative_ids, representative_labels))
-    station_obs = filter(r -> !ismissing(r.station_id) && r.station_id == id && !ismissing(r.temperature_c), df_obs)
+    station_obs = filter(r -> !ismissing(r.station_id) && r.station_id == id &&
+        !ismissing(r.temperature_c), df_obs)
     if nrow(station_obs) > 0
-        lines!(ax2, station_obs.timestamp, station_obs.temperature_c,
+        daily = combine(groupby(station_obs, :date),
+            :temperature_c => mean => :temp_mean)
+        sort!(daily, :date)
+        lines!(ax2, daily.date, daily.temp_mean,
             label=label,
+            color=colors[i],
+            linewidth=0.8,
+        )
+    end
+end
+
+axislegend(ax2, position=:rt)
+
+# --- Panel 3: Diurnal cycle climatology (first representative station) ---
+
+climate_id = representative_ids[1]
+climate_label = representative_labels[1]
+
+climate_obs = filter(r -> !ismissing(r.station_id) && r.station_id == climate_id &&
+    !ismissing(r.temperature_c), df_obs)
+
+# Mean temperature by hour x month across the full record
+diurnal = combine(groupby(climate_obs, [:hour, :month_num]),
+    :temperature_c => mean => :temp_mean)
+
+# Build 12x24 matrix (months on x-axis, hours on y-axis)
+temp_matrix = fill(NaN, 12, 24)
+for row in eachrow(diurnal)
+    temp_matrix[row.month_num, row.hour + 1] = row.temp_mean
+end
+
+ax3 = Axis(fig[3, 1],
+    title="Diurnal Cycle Climatology — $climate_label",
+    xlabel="Month",
+    ylabel="Hour of Day (UTC)",
+    xticks=(1:12, ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+    yticks=(1:2:24, string.(0:2:23)),
+)
+
+hm = heatmap!(ax3, 1:12, 1:24, temp_matrix,
+    colormap=:thermal,
+)
+
+Colorbar(fig[3, 2], hm, label="Temperature (°C)")
+
+# --- Panel 4: One week at hourly resolution ---
+
+# Pick a mid-January week from 2025
+zoom_start = Date(2025, 1, 15)
+zoom_end = zoom_start + Day(6)
+
+# Fall back if no data in that range
+zoom_check = filter(r -> !ismissing(r.temperature_c) &&
+    r.date >= zoom_start && r.date <= zoom_end, df_obs)
+if nrow(zoom_check) == 0
+    # Try mid-record
+    mid_date = date_min + Day(div(Dates.value(date_max - date_min), 2))
+    zoom_start = mid_date
+    zoom_end = mid_date + Day(6)
+end
+
+ax4 = Axis(fig[4, 1],
+    title="Hourly Temperature — $(Dates.format(zoom_start, "d U yyyy")) to $(Dates.format(zoom_end, "d U yyyy"))",
+    xlabel="Date & Time",
+    ylabel="Temperature (°C)",
+)
+
+for (i, (id, short)) in enumerate(zip(representative_ids, representative_short))
+    week_obs = filter(r -> !ismissing(r.station_id) && r.station_id == id &&
+        !ismissing(r.temperature_c) &&
+        r.date >= zoom_start && r.date <= zoom_end, df_obs)
+    if nrow(week_obs) > 0
+        sort!(week_obs, :timestamp)
+        lines!(ax4, week_obs.timestamp, week_obs.temperature_c,
+            label=short,
             color=colors[i],
             linewidth=1.2,
         )
-        global has_timeseries = true
     end
 end
 
-if has_timeseries
-    axislegend(ax2, position=:rt)
-end
-
-# --- Panel 3: Data availability summary ---
-
-ax3 = Axis(fig[3, 1],
-    title="Observations per Station — December 2024",
-    xlabel="Station",
-    ylabel="Number of Observations",
-    xticklabelrotation=π/4,
-)
-
-# Count observations per representative station
-counts = Int[]
-labels = String[]
-for (id, label) in zip(representative_ids, representative_labels)
-    station_obs = filter(r -> !ismissing(r.station_id) && r.station_id == id, df_obs)
-    push!(counts, nrow(station_obs))
-    # Short label for x-axis
-    short = split(label, ": ")[end]
-    if length(short) > 20
-        short = short[1:20] * "…"
-    end
-    push!(labels, short)
-end
-
-barplot!(ax3, 1:length(counts), counts,
-    color=colors[1:length(counts)],
-)
-ax3.xticks = (1:length(labels), labels)
+axislegend(ax4, position=:rt)
 
 # ---------------------------------------------------------------------------
 # 5. Save

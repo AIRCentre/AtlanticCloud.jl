@@ -183,6 +183,31 @@ include("test_helpers.jl")
 			@test_throws AtlanticCloudError AtlanticCloud._parse("not valid json", "/test")
 		end
 
+		@testset "_extract_data with API error response" begin
+			# API returns {"error": "message"} instead of {"data": [...]}
+			error_json = AtlanticCloud.JSON3.read("""{"error": "date range too large"}""")
+			@test_throws AtlanticCloudError AtlanticCloud._extract_data(error_json, "/test")
+
+			# Verify the error message is included
+			try
+				AtlanticCloud._extract_data(error_json, "/test")
+			catch e
+				@test e isa AtlanticCloudError
+				@test occursin("date range too large", e.message)
+			end
+		end
+
+		@testset "_extract_data with missing data field" begin
+			bad_json = AtlanticCloud.JSON3.read("""{"something": "else"}""")
+			@test_throws AtlanticCloudError AtlanticCloud._extract_data(bad_json, "/test")
+		end
+
+		@testset "_extract_data with valid response" begin
+			valid_json = AtlanticCloud.JSON3.read("""{"data": []}""")
+			data = AtlanticCloud._extract_data(valid_json, "/test")
+			@test length(data) == 0
+		end
+
 	end
 
 	@testset "Integration tests (fixture-based)" begin
@@ -202,6 +227,12 @@ include("test_helpers.jl")
 			@test observations[1] isa Observation
 			@test observations[1].station_id == "11217160"
 			@test observations[1].pressure_hpa === nothing
+		end
+
+		@testset "API error response handled gracefully" begin
+			client = make_mock_client("test/fixtures/error_response.json")
+			@test_throws AtlanticCloudError get_observations(client, "11217160")
+			@test_throws AtlanticCloudError get_stations(client)
 		end
 
 	end

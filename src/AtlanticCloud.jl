@@ -203,6 +203,20 @@ function _parse(raw::String, path::String)
 	end
 end
 
+function _extract_data(parsed, path::String)
+	if haskey(parsed, :error)
+		throw(AtlanticCloudError(
+			"API error for $(path): $(parsed[:error])",
+		))
+	end
+	if !haskey(parsed, :data)
+		throw(AtlanticCloudError(
+			"Unexpected response format for $(path): missing 'data' field",
+		))
+	end
+	return parsed.data
+end
+
 function _build_query(params::Dict{String, String})
 	isempty(params) && return ""
 	"?" * join(["$(k)=$(v)" for (k, v) in params], "&")
@@ -238,7 +252,8 @@ function get_stations(client::AtlanticCloudClient;
 
 	raw = _get(client, "/meteorology/api/v1/stations" * _build_query(params))
 	parsed = _parse(raw, "/meteorology/api/v1/stations")
-	return [Station(s) for s in parsed.data]
+	data = _extract_data(parsed, "/meteorology/api/v1/stations")
+	return [Station(s) for s in data]
 end
 
 """
@@ -302,7 +317,8 @@ function get_observations(
 
 	raw = _get(client, "/meteorology/api/v1/observations" * _build_query(params))
 	parsed = _parse(raw, "/meteorology/api/v1/observations")
-	return [Observation(o) for o in parsed.data]
+	data = _extract_data(parsed, "/meteorology/api/v1/observations")
+	return [Observation(o) for o in data]
 end
 
 """
