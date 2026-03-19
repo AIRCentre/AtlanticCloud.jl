@@ -14,7 +14,7 @@ makedocs(
         canonical = "https://AIRCentre.github.io/AtlanticCloud.jl",
         assets = ["assets/favicon.ico"],
     ),
-    authors = "João Pinelo <jp@joaopinelo.com>",
+    authors = "João Pinelo <joao.pinelo@aircentre.org>",
     repo = Documenter.Remotes.GitHub("AIRCentre", "AtlanticCloud.jl"),
 )
 
