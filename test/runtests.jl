@@ -771,6 +771,91 @@ include("test_helpers.jl")
 
 	end
 
+		@testset "BrObservation (#24)" begin
+
+		@testset "parse hourly fixture" begin
+			raw = read("test/fixtures/observations_br_hourly.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+
+			@test length(obs) == 61
+			@test all(o -> o isa BrObservation, obs)
+
+			o = obs[1]
+			@test o.station_id == "350960101A"
+			@test o.timestamp == DateTime(2020, 1, 1, 0, 0, 0)
+			@test o.precipitation_accum_mm == 0.6
+			@test o.qc_flag == "SUSPECT_INCOMPLETE_HOUR"
+			@test o.flagged == true
+			@test o.state == "SP"
+		end
+
+		@testset "parse daily fixture" begin
+			raw = read("test/fixtures/observations_br_daily.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+
+			@test length(obs) == 15
+			@test obs[1].station_id == "1442032"
+			@test obs[1].state == "MG"
+			@test obs[1].qc_flag == "PASS"
+			@test obs[1].flagged == false
+
+			# Precipitation values
+			@test obs[1].precipitation_accum_mm == 0.0
+			@test obs[2].precipitation_accum_mm == 41.2
+		end
+
+		@testset "parse state fixture — multiple stations" begin
+			raw = read("test/fixtures/observations_br_state.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+
+			@test length(obs) == 20
+			sids = Set(o.station_id for o in obs)
+			@test length(sids) == 20
+			@test all(o -> o.state == "AC", obs)
+		end
+
+		@testset "QC flag and flagged correlation" begin
+			raw = read("test/fixtures/observations_br_hourly.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+
+			flags = Set(o.qc_flag for o in obs)
+			@test "PASS" in flags
+			@test "SUSPECT_INCOMPLETE_HOUR" in flags
+
+			for o in obs
+				if o.qc_flag == "PASS"
+					@test o.flagged == false
+				else
+					@test o.flagged == true
+				end
+			end
+		end
+
+		@testset "null station_id" begin
+			json = AtlanticCloud.JSON3.read("""
+				{"station_id": null, "timestamp": "2020-01-01 00:00:00",
+				 "precipitation_accum_mm": 1.5, "qc_flag": "PASS",
+				 "flagged": false, "state": "SP"}
+			""")
+			o = BrObservation(json)
+			@test o.station_id === nothing
+			@test o.precipitation_accum_mm == 1.5
+			@test o.state == "SP"
+		end
+
+		@testset "empty fixture" begin
+			raw = read("test/fixtures/observations_br_empty.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+			@test length(obs) == 0
+		end
+
+	end
+
 		@testset "Routing mock client" begin
 
 		@testset "routes /stations requests" begin

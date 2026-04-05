@@ -204,6 +204,39 @@ struct Observation
 	end
 end
 
+"""
+    BrObservation
+
+A single Brazilian rainfall observation (hourly or daily).
+
+# Fields
+- `station_id`: Station identifier (may be `nothing`).
+- `timestamp`: Observation time as `DateTime`.
+- `precipitation_accum_mm`: Accumulated precipitation in mm.
+- `qc_flag`: Quality control flag, `"PASS"` or `"SUSPECT_*"`.
+- `flagged`: `true` if the observation is suspect.
+- `state`: Two-letter Brazilian state code.
+"""
+struct BrObservation
+	station_id::Union{String, Nothing}
+	timestamp::DateTime
+	precipitation_accum_mm::Float64
+	qc_flag::String
+	flagged::Bool
+	state::String
+
+	function BrObservation(obj::JSON3.Object)
+		new(
+			_nullable_string(obj, :station_id),
+			DateTime(obj[:timestamp], dateformat"yyyy-mm-dd HH:MM:SS"),
+			Float64(obj[:precipitation_accum_mm]),
+			String(obj[:qc_flag]),
+			Bool(obj[:flagged]),
+			String(obj[:state]),
+		)
+	end
+end
+
 function _get(client::AtlanticCloudClient, path::String)
 	url = client.base_url * path
 	try
@@ -496,7 +529,7 @@ function to_dataframe(observations::Vector{Observation})
 	)
 end
 
-export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation,
+export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation,
 	get_observations, get_observations_bulk, VALID_METRICS, to_dataframe
 
 end
