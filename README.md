@@ -1,6 +1,6 @@
 # AtlanticCloud.jl
 
-[![CI](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml)
+[![CI](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/AIRCentre/AtlanticCloud.jl/actions/workflows/CI.yml)
 [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://aircentre.github.io/AtlanticCloud.jl/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
