@@ -465,6 +465,82 @@ function get_observations_bulk(
 end
 
 """
+    get_br_observations(client; resolution, station_id, state, start_date, end_date, flagged, qc_flag)
+
+Retrieve Brazilian rainfall observations.
+
+# Arguments
+- `client`: An `AtlanticCloudClient` instance.
+- `resolution`: Required. `"hourly"` or `"daily"`.
+- `station_id`: Filter by station ID (optional).
+- `state`: Filter by Brazilian state code, e.g. `"SP"` (optional).
+- `start_date`: Start of date range as `Date` or `DateTime` (optional).
+- `end_date`: End of date range as `Date` or `DateTime` (optional).
+- `flagged`: Filter by QC flag status: `true` for suspect, `false` for clean (optional).
+- `qc_flag`: Filter by exact QC flag string, e.g. `"PASS"` (optional).
+
+At least one of `station_id` or `state` must be provided.
+Date range cannot exceed 6 months (API limit).
+
+# Returns
+`Vector{BrObservation}`
+
+# Example
+```julia
+using Dates
+client = AtlanticCloudClient(api_key="your_key")
+obs = get_br_observations(client,
+    resolution="hourly", state="SP",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31))
+```
+"""
+function get_br_observations(
+	client::AtlanticCloudClient;
+	resolution::String,
+	station_id::Union{String, Nothing} = nothing,
+	state::Union{String, Nothing} = nothing,
+	start_date::Union{Date, DateTime, Nothing} = nothing,
+	end_date::Union{Date, DateTime, Nothing} = nothing,
+	flagged::Union{Bool, Nothing} = nothing,
+	qc_flag::Union{String, Nothing} = nothing,
+)
+	if !(resolution in ("hourly", "daily"))
+		throw(ArgumentError(
+			"resolution must be \"hourly\" or \"daily\", got \"$resolution\""
+		))
+	end
+
+	if isnothing(station_id) && isnothing(state)
+		throw(ArgumentError(
+			"at least one of station_id or state must be provided"
+		))
+	end
+
+	if !isnothing(start_date) && !isnothing(end_date)
+		if Date(start_date) > Date(end_date)
+			throw(ArgumentError(
+				"start_date ($(Date(start_date))) is after end_date ($(Date(end_date)))"
+			))
+		end
+	end
+
+	params = Dict{String, String}()
+	params["resolution"] = resolution
+	!isnothing(station_id) && (params["station_id"] = station_id)
+	!isnothing(state) && (params["state"] = state)
+	!isnothing(start_date) && (params["start_date"] = Dates.format(start_date, "yyyy-mm-dd"))
+	!isnothing(end_date) && (params["end_date"] = Dates.format(end_date, "yyyy-mm-dd"))
+	!isnothing(flagged) && (params["flagged"] = string(flagged))
+	!isnothing(qc_flag) && (params["qc_flag"] = qc_flag)
+
+	raw = _get(client, "/meteorology/api/v1/observations/br" * _build_query(params))
+	parsed = _parse(raw, "/meteorology/api/v1/observations/br")
+	data = _extract_data(parsed, "/meteorology/api/v1/observations/br")
+	return [BrObservation(o) for o in data]
+end
+
+"""
     to_dataframe(stations::Vector{Station}) -> DataFrame
 
 Convert a vector of `Station` objects to a `DataFrame`.
@@ -529,7 +605,7 @@ function to_dataframe(observations::Vector{Observation})
 	)
 end
 
-export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation,
+export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation, get_br_observations,
 	get_observations, get_observations_bulk, VALID_METRICS, to_dataframe
 
 end

@@ -856,6 +856,133 @@ include("test_helpers.jl")
 
 	end
 
+		@testset "get_br_observations (#25)" begin
+
+		@testset "station-based hourly query" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A")
+			@test length(obs) == 61
+			@test all(o -> o isa BrObservation, obs)
+			@test obs[1].station_id == "350960101A"
+		end
+
+		@testset "state-based query" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_state.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", state="AC")
+			@test length(obs) == 20
+			@test all(o -> o.state == "AC", obs)
+		end
+
+		@testset "daily resolution" begin
+			client = make_routing_mock_client(
+				br_station_fixtures=Dict(
+					"1442032" => "test/fixtures/observations_br_daily.json",
+				),
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			obs = get_br_observations(client,
+				resolution="daily", station_id="1442032")
+			@test length(obs) == 15
+			@test obs[1].state == "MG"
+		end
+
+		@testset "with date parameters" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A",
+				start_date=Date(2020, 1, 1), end_date=Date(2020, 1, 8))
+			@test length(obs) == 61
+		end
+
+		@testset "with DateTime parameters" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A",
+				start_date=DateTime(2020, 1, 1), end_date=DateTime(2020, 1, 8))
+			@test length(obs) == 61
+		end
+
+		@testset "with flagged filter" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A",
+				flagged=false)
+			@test length(obs) == 61  # mock ignores params
+		end
+
+		@testset "with qc_flag filter" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A",
+				qc_flag="PASS")
+			@test length(obs) == 61  # mock ignores params
+		end
+
+		@testset "both station_id and state" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="350960101A", state="SP")
+			@test length(obs) == 61
+		end
+
+		@testset "empty result" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			obs = get_br_observations(client,
+				resolution="hourly", station_id="NONE")
+			@test length(obs) == 0
+		end
+
+		@testset "API error response" begin
+			client = make_mock_client("test/fixtures/error_response.json")
+			@test_throws AtlanticCloudError get_br_observations(client,
+				resolution="hourly", station_id="X")
+		end
+
+		@testset "validation — invalid resolution" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			@test_throws ArgumentError get_br_observations(client,
+				resolution="weekly", station_id="X")
+		end
+
+		@testset "validation — neither station_id nor state" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			@test_throws ArgumentError get_br_observations(client,
+				resolution="hourly")
+		end
+
+		@testset "validation — start_date after end_date" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			@test_throws ArgumentError get_br_observations(client,
+				resolution="hourly", station_id="X",
+				start_date=Date(2020, 6, 1), end_date=Date(2020, 1, 1))
+		end
+
+	end
+
 		@testset "Routing mock client" begin
 
 		@testset "routes /stations requests" begin
