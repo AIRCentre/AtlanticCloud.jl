@@ -4,17 +4,18 @@
 [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://aircentre.github.io/AtlanticCloud.jl/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological station data and observations across the Atlantic region.
+A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological and rainfall data across Portugal and Brazil.
 
 ![Atlantic Weather Showcase](examples/figures/atlantic_weather.png)
 
 ## Features
 
-- **340+ stations** across mainland Portugal, the Azores, and Madeira.
-- **5+ years of hourly observations** — temperature, wind, humidity, radiation, precipitation, and pressure.
+- **21,000+ stations** across Portugal and Brazil, from 6 observation networks.
+- **Portuguese observations** — 5+ years of hourly data: temperature, wind, humidity, radiation, precipitation, and pressure.
+- **Brazilian rainfall** — 140 years (1885–2025) of hourly and daily precipitation from the UNIPLU-BR dataset, with quality control flags.
 - **Bulk fetch** — retrieve observations for multiple stations in a single call with configurable error handling.
 - **DataFrame integration** — convert results directly to DataFrames for analysis and plotting.
-- **JuliaGeo compatible** — stations implement [GeoInterface.jl](https://github.com/JuliaGeo/GeoInterface.jl) `PointTrait`, so they work natively with GeoMakie, GeometryOps, GeoJSON.jl, and the wider JuliaGeo ecosystem.
+- **JuliaGeo compatible** — stations implement [GeoInterface.jl](https://github.com/JuliaGeo/GeoInterface.jl) `PointTrait` for use with GeoMakie, GeometryOps, and the wider JuliaGeo ecosystem.
 
 ## Installation
 
@@ -86,6 +87,37 @@ bulk_obs = get_observations_bulk(client, ids[1:5],
 df_bulk = to_dataframe(bulk_obs)
 ```
 
+
+## Brazilian rainfall data
+
+```julia
+# Get Brazilian stations
+br_stations = get_stations(client, country="BR")
+
+# Filter by state
+sp_stations = get_stations(client, country="BR", state="SP")
+
+# Hourly rainfall observations
+br_obs = get_br_observations(client,
+    resolution="hourly", state="SP",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31))
+
+# Daily rainfall
+daily = get_br_observations(client,
+    resolution="daily", station_id="1442032",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 6, 30))
+
+# Filter by quality control
+clean = get_br_observations(client,
+    resolution="hourly", state="MG",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31),
+    flagged=false)
+
+df_br = to_dataframe(br_obs)
+```
 ## GeoInterface integration
 
 Stations implement `PointTrait`, so they work directly with JuliaGeo packages:
@@ -99,7 +131,7 @@ GI.x(GI.PointTrait(), s)     # longitude
 GI.y(GI.PointTrait(), s)     # latitude
 ```
 
-## Available metrics
+## Available metrics — Portuguese observations
 
 | Metric | Unit | Notes |
 |--------|------|-------|
@@ -111,6 +143,15 @@ GI.y(GI.PointTrait(), s)     # latitude
 | `precipitation_accum_mm` | mm | Accumulated precipitation |
 | `pressure_hpa` | hPa | Atmospheric pressure (limited station coverage) |
 
+
+## Available metrics — Brazilian observations
+
+| Metric | Unit | Notes |
+|--------|------|-------|
+| `precipitation_accum_mm` | mm | Accumulated precipitation |
+| `qc_flag` | string | `"PASS"` or `"SUSPECT_*"` |
+| `flagged` | boolean | `true` if observation is suspect |
+| `state` | string | Two-letter Brazilian state code |
 ## API documentation
 
 - **Package docs:** [aircentre.github.io/AtlanticCloud.jl](https://aircentre.github.io/AtlanticCloud.jl/)

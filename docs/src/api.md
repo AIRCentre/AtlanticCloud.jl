@@ -14,13 +14,21 @@ Station
 get_stations
 ```
 
-## Observations
+## Observations — Portugal
 
 ```@docs
 Observation
 get_observations
 get_observations_bulk
 VALID_METRICS
+```
+
+## Observations — Brazil
+
+```@docs
+BrObservation
+get_br_observations
+get_br_observations_bulk
 ```
 
 ## DataFrame conversion

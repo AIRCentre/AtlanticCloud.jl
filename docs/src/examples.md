@@ -62,3 +62,59 @@ GI.y(GI.PointTrait(), s)  # latitude
 ```
 
 Stations implement `PointTrait`, so they work directly with GeoMakie, GeometryOps, GeoJSON.jl, and any other JuliaGeo-compatible package.
+
+## Brazilian rainfall data
+
+The API provides access to the UNIPLU-BR dataset: 21,000+ rain gauges across all 27 Brazilian states, with records from 1885 to 2025 at hourly and daily resolution.
+
+### Fetch stations by country and state
+
+```julia
+using AtlanticCloud, DataFrames, Dates
+
+client = AtlanticCloudClient()
+
+# All Brazilian stations
+br = get_stations(client, country="BR")
+println("Brazilian stations: $(length(br))")
+
+# Stations in São Paulo
+sp = get_stations(client, country="BR", state="SP")
+df = to_dataframe(sp)
+```
+
+### Query rainfall observations
+
+```julia
+# Hourly rainfall for a state
+obs = get_br_observations(client,
+    resolution="hourly", state="AC",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31))
+df = to_dataframe(obs)
+
+# Daily rainfall for a single station
+daily = get_br_observations(client,
+    resolution="daily", station_id="1442032",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 6, 30))
+
+# Only clean (non-suspect) observations
+clean = get_br_observations(client,
+    resolution="hourly", state="MG",
+    start_date=Date(2020, 6, 1),
+    end_date=Date(2020, 6, 30),
+    flagged=false)
+```
+
+### Bulk fetch across stations
+
+```julia
+ids = [s.station_id for s in sp if s.station_id !== nothing]
+bulk = get_br_observations_bulk(client, ids[1:10],
+    resolution="hourly",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 7),
+    on_error=:warn)
+df_bulk = to_dataframe(bulk)
+```
