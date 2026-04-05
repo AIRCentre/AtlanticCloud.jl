@@ -983,6 +983,80 @@ include("test_helpers.jl")
 
 	end
 
+		@testset "get_br_observations_bulk (#26)" begin
+
+		@testset "multi-station fetch" begin
+			client = make_routing_mock_client(
+				br_station_fixtures=Dict(
+					"350960101A" => "test/fixtures/observations_br_hourly.json",
+					"1442032" => "test/fixtures/observations_br_daily.json",
+				),
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			obs = get_br_observations_bulk(client,
+				["350960101A", "1442032", "UNKNOWN"],
+				resolution="hourly", progress=false)
+			@test length(obs) == 76  # 61 + 15 + 0
+			@test all(o -> o isa BrObservation, obs)
+		end
+
+		@testset "empty station list" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			obs = get_br_observations_bulk(client, String[],
+				resolution="hourly", progress=false)
+			@test length(obs) == 0
+		end
+
+		@testset "on_error = :warn" begin
+			client = make_routing_mock_client(
+				br_station_fixtures=Dict(
+					"350960101A" => "test/fixtures/observations_br_hourly.json",
+				),
+				br_fixture="test/fixtures/observations_br_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+			obs = get_br_observations_bulk(client,
+				["350960101A", "BADSTATION"],
+				resolution="hourly", progress=false)
+			@test length(obs) == 61
+		end
+
+		@testset "on_error = :throw" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+			@test_throws AtlanticCloudError get_br_observations_bulk(client,
+				["BADSTATION"],
+				resolution="hourly", on_error=:throw, progress=false)
+		end
+
+		@testset "on_error = :skip" begin
+			client = make_routing_mock_client(
+				br_station_fixtures=Dict(
+					"350960101A" => "test/fixtures/observations_br_hourly.json",
+				),
+				br_fixture="test/fixtures/observations_br_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+			obs = get_br_observations_bulk(client,
+				["BADSTATION", "350960101A"],
+				resolution="hourly", on_error=:skip, progress=false)
+			@test length(obs) == 61
+		end
+
+		@testset "invalid on_error" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+			)
+			@test_throws ArgumentError get_br_observations_bulk(client,
+				["X"], resolution="hourly", on_error=:invalid, progress=false)
+		end
+
+	end
+
 		@testset "Routing mock client" begin
 
 		@testset "routes /stations requests" begin

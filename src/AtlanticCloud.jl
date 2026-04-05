@@ -541,6 +541,91 @@ function get_br_observations(
 end
 
 """
+    get_br_observations_bulk(client, station_ids; resolution, start_date, end_date, flagged, qc_flag, on_error, progress)
+
+Fetch Brazilian rainfall observations for multiple stations, returning a
+combined `Vector{BrObservation}`.
+
+The API requires one station per request, so this function loops internally.
+For state-based queries, use `get_br_observations` directly — a single call
+with `state` already returns all stations for that state.
+
+# Arguments
+- `client`: An `AtlanticCloudClient` instance.
+- `station_ids`: Vector of station identifiers to fetch.
+- `resolution`: Required. `"hourly"` or `"daily"`.
+- `start_date`: Start of date range as `Date` or `DateTime` (optional).
+- `end_date`: End of date range as `Date` or `DateTime` (optional).
+- `flagged`: Filter by QC flag status (optional).
+- `qc_flag`: Filter by exact QC flag string (optional).
+- `on_error`: Error handling mode (default `:warn`).
+  - `:warn` — log a warning, skip the station, continue.
+  - `:throw` — re-raise immediately (fail-fast).
+  - `:skip` — silently skip failed stations.
+- `progress`: Log progress every 10 stations (default `true`).
+
+# Returns
+`Vector{BrObservation}`
+
+# Example
+```julia
+using Dates
+client = AtlanticCloudClient(api_key="your_key")
+stations = get_stations(client, country="BR", state="MG")
+ids = [s.station_id for s in stations if s.station_id !== nothing]
+obs = get_br_observations_bulk(client, ids[1:5],
+    resolution="hourly",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31))
+```
+"""
+function get_br_observations_bulk(
+	client::AtlanticCloudClient,
+	station_ids::Vector{String};
+	resolution::String,
+	start_date::Union{Date, DateTime, Nothing} = nothing,
+	end_date::Union{Date, DateTime, Nothing} = nothing,
+	flagged::Union{Bool, Nothing} = nothing,
+	qc_flag::Union{String, Nothing} = nothing,
+	on_error::Symbol = :warn,
+	progress::Bool = true,
+)
+	if !(on_error in (:warn, :throw, :skip))
+		throw(ArgumentError(
+			"on_error must be :warn, :throw, or :skip, got :$on_error"
+		))
+	end
+
+	results = BrObservation[]
+	n = length(station_ids)
+
+	for (i, sid) in enumerate(station_ids)
+		if progress && (i == 1 || i % 10 == 0 || i == n)
+			@info "Fetching BR observations" station=i total=n station_id=sid
+		end
+
+		try
+			obs = get_br_observations(client;
+				resolution=resolution, station_id=sid,
+				start_date=start_date, end_date=end_date,
+				flagged=flagged, qc_flag=qc_flag)
+			append!(results, obs)
+		catch e
+			if !(e isa AtlanticCloudError)
+				rethrow(e)
+			end
+			if on_error == :throw
+				rethrow(e)
+			elseif on_error == :warn
+				@warn "Failed to fetch BR observations" station_id=sid error=e.message
+			end
+		end
+	end
+
+	return results
+end
+
+"""
     to_dataframe(stations::Vector{Station}) -> DataFrame
 
 Convert a vector of `Station` objects to a `DataFrame`.
@@ -605,7 +690,7 @@ function to_dataframe(observations::Vector{Observation})
 	)
 end
 
-export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation, get_br_observations,
+export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation, get_br_observations, get_br_observations_bulk,
 	get_observations, get_observations_bulk, VALID_METRICS, to_dataframe
 
 end
