@@ -252,14 +252,16 @@ function _build_query(params::Dict{String, String})
 end
 
 """
-    get_stations(client; station_id, source)
+    get_stations(client; station_id, source, country, state)
 
 Retrieve meteorological stations from the AIR Centre network.
 
 # Arguments
 - `client`: An `AtlanticCloudClient` instance.
 - `station_id`: Filter by station ID (optional).
-- `source`: Filter by data source, e.g. `"IPMA"`, `"RHA"` (optional).
+- `source`: Filter by data source, e.g. `"IPMA"`, `"CEMADEN"` (optional).
+- `country`: Filter by country code, `"PT"` or `"BR"` (optional).
+- `state`: Filter by Brazilian state code, e.g. `"SP"`, `"MG"` (optional).
 
 # Returns
 `Vector{Station}`
@@ -268,16 +270,21 @@ Retrieve meteorological stations from the AIR Centre network.
 ```julia
 client = AtlanticCloudClient(api_key="your_key")
 stations = get_stations(client)
-ipma = get_stations(client, source="IPMA")
+br = get_stations(client, country="BR")
+sp = get_stations(client, country="BR", state="SP")
 ```
 """
 function get_stations(client::AtlanticCloudClient;
 	station_id::Union{String, Nothing} = nothing,
 	source::Union{String, Nothing} = nothing,
+	country::Union{String, Nothing} = nothing,
+	state::Union{String, Nothing} = nothing,
 )
 	params = Dict{String, String}()
 	!isnothing(station_id) && (params["station_id"] = station_id)
 	!isnothing(source) && (params["source"] = source)
+	!isnothing(country) && (params["country"] = country)
+	!isnothing(state) && (params["state"] = state)
 
 	raw = _get(client, "/meteorology/api/v1/stations" * _build_query(params))
 	parsed = _parse(raw, "/meteorology/api/v1/stations")

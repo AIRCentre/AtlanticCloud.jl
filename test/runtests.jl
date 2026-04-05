@@ -731,7 +731,47 @@ include("test_helpers.jl")
 
 	end
 
-	@testset "Routing mock client" begin
+	@testset "get_stations — country and state filters (#23)" begin
+
+		@testset "country filter" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_br.json",
+			)
+			stations = get_stations(client, country="BR")
+			@test length(stations) == 6
+			@test all(s -> s.country == "BR", stations)
+		end
+
+		@testset "state filter" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_br.json",
+			)
+			stations = get_stations(client, country="BR", state="MG")
+			@test length(stations) == 6
+		end
+
+		@testset "no filters still works" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_multi.json",
+			)
+			stations = get_stations(client)
+			@test length(stations) == 6
+			@test stations[1].station_id == "11217160"
+		end
+
+		@testset "combining all filters" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_br.json",
+			)
+			stations = get_stations(client,
+				source="CEMADEN", country="BR", state="RO")
+			@test length(stations) == 6
+			@test all(s -> s isa Station, stations)
+		end
+
+	end
+
+		@testset "Routing mock client" begin
 
 		@testset "routes /stations requests" begin
 			client = make_routing_mock_client(
