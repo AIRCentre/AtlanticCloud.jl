@@ -1057,6 +1057,77 @@ include("test_helpers.jl")
 
 	end
 
+		@testset "to_dataframe — BrObservation (#27)" begin
+
+		@testset "hourly observations" begin
+			raw = read("test/fixtures/observations_br_hourly.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+			df = to_dataframe(obs)
+
+			@test df isa DataFrame
+			@test nrow(df) == 61
+			@test ncol(df) == 6
+			@test names(df) == ["station_id", "timestamp", "precipitation_accum_mm",
+				"qc_flag", "flagged", "state"]
+
+			@test eltype(df.timestamp) == DateTime
+			@test eltype(df.precipitation_accum_mm) == Float64
+			@test eltype(df.flagged) == Bool
+			@test eltype(df.state) == String
+
+			@test df.station_id[1] == "350960101A"
+			@test df.precipitation_accum_mm[1] == 0.6
+			@test df.qc_flag[1] == "SUSPECT_INCOMPLETE_HOUR"
+			@test df.flagged[1] == true
+			@test df.state[1] == "SP"
+		end
+
+		@testset "daily observations" begin
+			raw = read("test/fixtures/observations_br_daily.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+			df = to_dataframe(obs)
+
+			@test nrow(df) == 15
+			@test df.station_id[1] == "1442032"
+			@test df.precipitation_accum_mm[2] == 41.2
+		end
+
+		@testset "empty vector" begin
+			df = to_dataframe(BrObservation[])
+			@test df isa DataFrame
+			@test nrow(df) == 0
+			@test ncol(df) == 6
+		end
+
+		@testset "null station_id becomes missing" begin
+			json = AtlanticCloud.JSON3.read("""{"data": [
+				{"station_id": null, "timestamp": "2020-01-01 00:00:00",
+				 "precipitation_accum_mm": 1.0, "qc_flag": "PASS",
+				 "flagged": false, "state": "SP"}
+			]}""")
+			obs = [BrObservation(o) for o in json.data]
+			df = to_dataframe(obs)
+
+			@test ismissing(df.station_id[1])
+			@test df.state[1] == "SP"
+		end
+
+		@testset "check_dataframe helper" begin
+			raw = read("test/fixtures/observations_br_hourly.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			obs = [BrObservation(o) for o in parsed.data]
+			df = to_dataframe(obs)
+
+			failures = check_dataframe(df,
+				[:station_id, :timestamp, :precipitation_accum_mm, :qc_flag, :flagged, :state],
+				61)
+			@test isempty(failures)
+		end
+
+	end
+
 		@testset "Routing mock client" begin
 
 		@testset "routes /stations requests" begin

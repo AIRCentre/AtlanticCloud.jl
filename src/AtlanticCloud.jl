@@ -690,6 +690,38 @@ function to_dataframe(observations::Vector{Observation})
 	)
 end
 
+"""
+    to_dataframe(observations::Vector{BrObservation}) -> DataFrame
+
+Convert a vector of `BrObservation` objects to a `DataFrame`.
+
+Columns: `station_id`, `timestamp`, `precipitation_accum_mm`, `qc_flag`,
+`flagged`, `state`. The `station_id` field uses `nothing` → `missing` conversion;
+all other fields are non-nullable.
+
+# Example
+```julia
+using Dates
+client = AtlanticCloudClient(api_key="your_key")
+obs = get_br_observations(client,
+    resolution="hourly", state="SP",
+    start_date=Date(2020, 1, 1), end_date=Date(2020, 1, 31))
+df = to_dataframe(obs)
+```
+"""
+function to_dataframe(observations::Vector{BrObservation})
+	_m(v) = v === nothing ? missing : v
+
+	DataFrame(
+		station_id = [_m(o.station_id) for o in observations],
+		timestamp = [o.timestamp for o in observations],
+		precipitation_accum_mm = [o.precipitation_accum_mm for o in observations],
+		qc_flag = [o.qc_flag for o in observations],
+		flagged = [o.flagged for o in observations],
+		state = [o.state for o in observations],
+	)
+end
+
 export AtlanticCloudClient, AtlanticCloudError, Station, get_stations, Observation, BrObservation, get_br_observations, get_br_observations_bulk,
 	get_observations, get_observations_bulk, VALID_METRICS, to_dataframe
 
