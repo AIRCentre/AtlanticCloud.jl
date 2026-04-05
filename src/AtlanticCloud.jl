@@ -83,6 +83,17 @@ struct AtlanticCloudClient
 	end
 end
 
+# -- Helper for nullable field extraction --
+
+_nullable_string(obj, key::Symbol) =
+	haskey(obj, key) && obj[key] !== nothing ? String(obj[key]) : nothing
+
+_nullable_float(obj, key::Symbol) =
+	haskey(obj, key) && obj[key] !== nothing ? Float64(obj[key]) : nothing
+
+_nullable_int(obj, key::Symbol) =
+	haskey(obj, key) && obj[key] !== nothing ? Int(obj[key]) : nothing
+
 """
     Station
 
@@ -93,11 +104,17 @@ Implements [`GeoInterface.jl`](https://github.com/JuliaGeo/GeoInterface.jl)
 GeoJSON.jl, and any other JuliaGeo-compatible package.
 
 # Fields
-- `station_id`: Unique identifier (may be `nothing`)
-- `place`: Human-readable location name (may be `nothing`)
-- `latitude_deg`: Latitude in decimal degrees
-- `longitude_deg`: Longitude in decimal degrees
-- `source`: Data source, e.g. `"IPMA"`, `"RHA"`, `"AIRC"` (may be `nothing`)
+- `station_id`: Unique identifier (may be `nothing`).
+- `place`: Human-readable location name (may be `nothing`).
+- `latitude_deg`: Latitude in decimal degrees.
+- `longitude_deg`: Longitude in decimal degrees.
+- `source`: Data source, e.g. `"IPMA"`, `"CEMADEN"` (may be `nothing`).
+- `country`: Two-letter country code, `"PT"` or `"BR"` (may be `nothing`).
+- `state`: Two-letter Brazilian state code; `nothing` for PT stations.
+- `elevation_m`: Station altitude in metres (may be `nothing`).
+- `responsible`: Operating agency, e.g. `"INMET"` (may be `nothing`).
+- `utc_offset`: UTC offset in hours (may be `nothing`).
+- `temporal_resolution_min`: Nominal observation interval in minutes (may be `nothing`).
 """
 struct Station
 	station_id::Union{String, Nothing}
@@ -105,14 +122,26 @@ struct Station
 	latitude_deg::Float64
 	longitude_deg::Float64
 	source::Union{String, Nothing}
+	country::Union{String, Nothing}
+	state::Union{String, Nothing}
+	elevation_m::Union{Float64, Nothing}
+	responsible::Union{String, Nothing}
+	utc_offset::Union{Int, Nothing}
+	temporal_resolution_min::Union{Int, Nothing}
 
 	function Station(obj::JSON3.Object)
 		new(
-			haskey(obj, :station_id) && obj[:station_id] !== nothing ? String(obj[:station_id]) : nothing,
-			haskey(obj, :place) && obj[:place] !== nothing ? String(obj[:place]) : nothing,
+			_nullable_string(obj, :station_id),
+			_nullable_string(obj, :place),
 			obj[:latitude_deg],
 			obj[:longitude_deg],
-			haskey(obj, :source) && obj[:source] !== nothing ? String(obj[:source]) : nothing,
+			_nullable_string(obj, :source),
+			_nullable_string(obj, :country),
+			_nullable_string(obj, :state),
+			_nullable_float(obj, :elevation_m),
+			_nullable_string(obj, :responsible),
+			_nullable_int(obj, :utc_offset),
+			_nullable_int(obj, :temporal_resolution_min),
 		)
 	end
 end
@@ -136,15 +165,15 @@ GI.y(::GI.PointTrait, s::Station) = s.latitude_deg
 A single hourly meteorological observation from a station.
 
 # Fields
-- `station_id`: Station identifier (may be `nothing`)
-- `timestamp`: Observation time as `DateTime`
-- `wind_speed_kmh`: Wind speed in km/h
-- `temperature_c`: Air temperature in °C
-- `radiation_kjm2`: Solar radiation in kJ/m²
-- `wind_direction_bin`: Wind direction bin index (integer)
-- `precipitation_accum_mm`: Accumulated precipitation in mm
-- `rel_humidity_pctg`: Relative humidity as percentage
-- `pressure_hpa`: Atmospheric pressure in hPa (may be `nothing`)
+- `station_id`: Station identifier (may be `nothing`).
+- `timestamp`: Observation time as `DateTime`.
+- `wind_speed_kmh`: Wind speed in km/h.
+- `temperature_c`: Air temperature in °C.
+- `radiation_kjm2`: Solar radiation in kJ/m².
+- `wind_direction_bin`: Wind direction bin index (integer).
+- `precipitation_accum_mm`: Accumulated precipitation in mm.
+- `rel_humidity_pctg`: Relative humidity as percentage.
+- `pressure_hpa`: Atmospheric pressure in hPa (may be `nothing`).
 
 All metric fields are `Union{Float64, Nothing}` except `wind_direction_bin`
 which is `Union{Int, Nothing}`.
@@ -162,15 +191,15 @@ struct Observation
 
 	function Observation(obj::JSON3.Object)
 		new(
-			haskey(obj, :station_id) && obj[:station_id] !== nothing ? String(obj[:station_id]) : nothing,
+			_nullable_string(obj, :station_id),
 			DateTime(obj[:timestamp], dateformat"yyyy-mm-dd HH:MM:SS"),
-			haskey(obj, :wind_speed_kmh) ? Float64(obj[:wind_speed_kmh]) : nothing,
-			haskey(obj, :temperature_c) ? Float64(obj[:temperature_c]) : nothing,
-			haskey(obj, :radiation_kjm2) ? Float64(obj[:radiation_kjm2]) : nothing,
-			haskey(obj, :wind_direction_bin) ? Int(obj[:wind_direction_bin]) : nothing,
-			haskey(obj, :precipitation_accum_mm) ? Float64(obj[:precipitation_accum_mm]) : nothing,
-			haskey(obj, :rel_humidity_pctg) ? Float64(obj[:rel_humidity_pctg]) : nothing,
-			haskey(obj, :pressure_hpa) ? Float64(obj[:pressure_hpa]) : nothing,
+			_nullable_float(obj, :wind_speed_kmh),
+			_nullable_float(obj, :temperature_c),
+			_nullable_float(obj, :radiation_kjm2),
+			_nullable_int(obj, :wind_direction_bin),
+			_nullable_float(obj, :precipitation_accum_mm),
+			_nullable_float(obj, :rel_humidity_pctg),
+			_nullable_float(obj, :pressure_hpa),
 		)
 	end
 end
@@ -228,9 +257,9 @@ end
 Retrieve meteorological stations from the AIR Centre network.
 
 # Arguments
-- `client`: An `AtlanticCloudClient` instance
-- `station_id`: Filter by station ID (optional)
-- `source`: Filter by data source, e.g. `"IPMA"`, `"RHA"` (optional)
+- `client`: An `AtlanticCloudClient` instance.
+- `station_id`: Filter by station ID (optional).
+- `source`: Filter by data source, e.g. `"IPMA"`, `"RHA"` (optional).
 
 # Returns
 `Vector{Station}`
@@ -262,10 +291,10 @@ end
 Retrieve hourly meteorological observations for a station.
 
 # Arguments
-- `client`: An `AtlanticCloudClient` instance
-- `station_id`: Required station identifier
-- `start_date`: Start of date range as `Date` or `DateTime` (optional)
-- `end_date`: End of date range as `Date` or `DateTime` (optional)
+- `client`: An `AtlanticCloudClient` instance.
+- `station_id`: Required station identifier.
+- `start_date`: Start of date range as `Date` or `DateTime` (optional).
+- `end_date`: End of date range as `Date` or `DateTime` (optional).
 - `metrics`: Vector of metric names to include (optional). See `VALID_METRICS`.
 
 Throws `ArgumentError` if `start_date` is after `end_date`.
@@ -290,7 +319,6 @@ function get_observations(
 	end_date::Union{Date, DateTime, Nothing} = nothing,
 	metrics::Union{Vector{String}, Nothing} = nothing,
 )
-	# Validate date range
 	if !isnothing(start_date) && !isnothing(end_date)
 		if Date(start_date) > Date(end_date)
 			throw(ArgumentError(
@@ -330,16 +358,16 @@ The API requires one station per request, so this function loops internally and
 concatenates the results. All filter parameters are passed through to `get_observations`.
 
 # Arguments
-- `client`: An `AtlanticCloudClient` instance
-- `station_ids`: Vector of station identifiers to fetch
-- `start_date`: Start of date range as `Date` or `DateTime` (optional)
-- `end_date`: End of date range as `Date` or `DateTime` (optional)
-- `metrics`: Vector of metric names to include (optional)
-- `on_error`: Error handling mode (default `:warn`)
-  - `:warn` — log a warning, skip the station, continue
-  - `:throw` — re-raise immediately (fail-fast)
-  - `:skip` — silently skip failed stations
-- `progress`: Log progress every 10 stations (default `true`)
+- `client`: An `AtlanticCloudClient` instance.
+- `station_ids`: Vector of station identifiers to fetch.
+- `start_date`: Start of date range as `Date` or `DateTime` (optional).
+- `end_date`: End of date range as `Date` or `DateTime` (optional).
+- `metrics`: Vector of metric names to include (optional).
+- `on_error`: Error handling mode (default `:warn`).
+  - `:warn` — log a warning, skip the station, continue.
+  - `:throw` — re-raise immediately (fail-fast).
+  - `:skip` — silently skip failed stations.
+- `progress`: Log progress every 10 stations (default `true`).
 
 # Returns
 `Vector{Observation}`
@@ -390,7 +418,6 @@ function get_observations_bulk(
 			elseif on_error == :warn
 				@warn "Failed to fetch observations" station_id=sid error=e.message
 			end
-			# :skip does nothing
 		end
 	end
 
@@ -402,7 +429,8 @@ end
 
 Convert a vector of `Station` objects to a `DataFrame`.
 
-Columns: `station_id`, `place`, `latitude_deg`, `longitude_deg`, `source`.
+Columns: `station_id`, `place`, `latitude_deg`, `longitude_deg`, `source`,
+`country`, `state`, `elevation_m`, `responsible`, `utc_offset`, `temporal_resolution_min`.
 Fields that are `nothing` are converted to `missing`.
 
 # Example
@@ -413,12 +441,20 @@ df = to_dataframe(stations)
 ```
 """
 function to_dataframe(stations::Vector{Station})
+	_m(v) = v === nothing ? missing : v
+
 	DataFrame(
-		station_id = [something(s.station_id, missing) for s in stations],
-		place = [something(s.place, missing) for s in stations],
+		station_id = [_m(s.station_id) for s in stations],
+		place = [_m(s.place) for s in stations],
 		latitude_deg = [s.latitude_deg for s in stations],
 		longitude_deg = [s.longitude_deg for s in stations],
-		source = [something(s.source, missing) for s in stations],
+		source = [_m(s.source) for s in stations],
+		country = [_m(s.country) for s in stations],
+		state = [_m(s.state) for s in stations],
+		elevation_m = [_m(s.elevation_m) for s in stations],
+		responsible = [_m(s.responsible) for s in stations],
+		utc_offset = [_m(s.utc_offset) for s in stations],
+		temporal_resolution_min = [_m(s.temporal_resolution_min) for s in stations],
 	)
 end
 

@@ -462,8 +462,8 @@ include("test_helpers.jl")
 
 		@test df isa DataFrame
 		@test nrow(df) == 6
-		@test ncol(df) == 5
-		@test names(df) == ["station_id", "place", "latitude_deg", "longitude_deg", "source"]
+		@test ncol(df) == 11
+		@test names(df) == ["station_id", "place", "latitude_deg", "longitude_deg", "source", "country", "state", "elevation_m", "responsible", "utc_offset", "temporal_resolution_min"]
 
 		@test eltype(df.latitude_deg) == Float64
 		@test eltype(df.longitude_deg) == Float64
@@ -529,7 +529,7 @@ include("test_helpers.jl")
 		df_stations = to_dataframe(Station[])
 		@test df_stations isa DataFrame
 		@test nrow(df_stations) == 0
-		@test ncol(df_stations) == 5
+		@test ncol(df_stations) == 11
 
 		df_obs = to_dataframe(Observation[])
 		@test df_obs isa DataFrame
@@ -545,7 +545,7 @@ include("test_helpers.jl")
 		df = to_dataframe(stations)
 
 		failures = check_dataframe(df,
-			[:station_id, :place, :latitude_deg, :longitude_deg, :source],
+			[:station_id, :place, :latitude_deg, :longitude_deg, :source, :country, :state, :elevation_m, :responsible, :utc_offset, :temporal_resolution_min],
 			6)
 		@test isempty(failures)
 
@@ -670,30 +670,64 @@ include("test_helpers.jl")
 
 	end
 
-	@testset "BR fixtures — backward compatibility" begin
+	@testset "Station — extended fields (#22)" begin
 
-		# BR station fixtures parse through the existing Station constructor.
-		# The constructor ignores unknown fields via haskey guards, so the
-		# 6 new fields are silently skipped. This verifies no parse errors.
-		raw = read("test/fixtures/stations_br.json", String)
-		parsed = AtlanticCloud.JSON3.read(raw)
-		stations = [Station(s) for s in parsed.data]
+		@testset "BR stations have all 11 fields" begin
+			raw = read("test/fixtures/stations_br.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			stations = [Station(s) for s in parsed.data]
 
-		@test length(stations) == 6
-		@test all(s -> s isa Station, stations)
-		@test stations[1].station_id == "02042051"
-		@test stations[1].latitude_deg ≈ -20.97888
-		@test stations[1].longitude_deg ≈ -42.50944
-		@test stations[1].source == "Telemetria"
+			@test length(stations) == 6
+			@test all(s -> s isa Station, stations)
 
-		# PT extended fixture also parses — new null fields are ignored
-		raw_pt = read("test/fixtures/stations_pt_extended.json", String)
-		parsed_pt = AtlanticCloud.JSON3.read(raw_pt)
-		pt_stations = [Station(s) for s in parsed_pt.data]
+			s = stations[1]
+			@test s.station_id == "02042051"
+			@test s.latitude_deg ≈ -20.97888
+			@test s.longitude_deg ≈ -42.50944
+			@test s.source == "Telemetria"
+			@test s.country == "BR"
+			@test s.state == "MG"
+			@test s.elevation_m ≈ 694.0
+			@test s.responsible == "Telemetria"
+			@test s.utc_offset == -3
+			@test s.temporal_resolution_min == 15
 
-		@test length(pt_stations) == 4
-		@test pt_stations[1].station_id == "11217160"
-		@test pt_stations[1].source == "IPMA"
+			# Fractional elevation
+			@test stations[5].elevation_m ≈ 1160.96
+
+			@test all(s -> s.country == "BR", stations)
+			@test all(s -> s.state !== nothing, stations)
+		end
+
+		@testset "PT stations have new fields as nothing" begin
+			raw = read("test/fixtures/stations_pt_extended.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			stations = [Station(s) for s in parsed.data]
+
+			@test length(stations) == 4
+			@test stations[1].station_id == "11217160"
+			@test stations[1].country == "PT"
+
+			for s in stations
+				@test s.state === nothing
+				@test s.elevation_m === nothing
+				@test s.responsible === nothing
+				@test s.utc_offset === nothing
+				@test s.temporal_resolution_min === nothing
+			end
+		end
+
+		@testset "old 5-field JSON still parses" begin
+			raw = read("test/fixtures/stations.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			stations = [Station(s) for s in parsed.data]
+
+			@test length(stations) > 0
+			@test stations[1].station_id == "11217160"
+			@test stations[1].country === nothing
+			@test stations[1].state === nothing
+			@test stations[1].elevation_m === nothing
+		end
 
 	end
 
