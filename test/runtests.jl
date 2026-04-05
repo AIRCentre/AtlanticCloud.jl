@@ -132,34 +132,28 @@ include("test_helpers.jl")
 
 		client = make_mock_client("test/fixtures/observations.json")
 
-		# Date parameters (already supported, verify still works)
 		obs = get_observations(client, "11217160",
 			start_date=Date(2024, 1, 1), end_date=Date(2024, 1, 3))
 		@test length(obs) > 0
 
-		# DateTime parameters
 		obs2 = get_observations(client, "11217160",
 			start_date=DateTime(2024, 1, 1), end_date=DateTime(2024, 1, 3))
 		@test length(obs2) > 0
 
-		# Mixed Date and DateTime
 		obs3 = get_observations(client, "11217160",
 			start_date=Date(2024, 1, 1), end_date=DateTime(2024, 1, 3, 12, 0, 0))
 		@test length(obs3) > 0
 
-		# Only start_date as DateTime
 		obs4 = get_observations(client, "11217160",
 			start_date=DateTime(2024, 1, 1, 6, 30, 0))
 		@test length(obs4) > 0
 
-		# Validation: start_date > end_date throws ArgumentError
 		@test_throws ArgumentError get_observations(client, "11217160",
 			start_date=Date(2024, 2, 1), end_date=Date(2024, 1, 1))
 
 		@test_throws ArgumentError get_observations(client, "11217160",
 			start_date=DateTime(2024, 2, 1), end_date=DateTime(2024, 1, 1))
 
-		# Same date is valid (not an error)
 		obs5 = get_observations(client, "11217160",
 			start_date=Date(2024, 1, 1), end_date=Date(2024, 1, 1))
 		@test length(obs5) > 0
@@ -184,11 +178,9 @@ include("test_helpers.jl")
 		end
 
 		@testset "_extract_data with API error response" begin
-			# API returns {"error": "message"} instead of {"data": [...]}
 			error_json = AtlanticCloud.JSON3.read("""{"error": "date range too large"}""")
 			@test_throws AtlanticCloudError AtlanticCloud._extract_data(error_json, "/test")
 
-			# Verify the error message is included
 			try
 				AtlanticCloud._extract_data(error_json, "/test")
 			catch e
@@ -247,13 +239,11 @@ include("test_helpers.jl")
 			@test length(stations) == 6
 			@test all(s -> s isa Station, stations)
 
-			# Verify geographic spread
 			ids = [s.station_id for s in stations]
-			@test "11217160" in ids   # Azores
-			@test "1200521" in ids    # Madeira
-			@test "1200535" in ids    # Mainland
+			@test "11217160" in ids
+			@test "1200521" in ids
+			@test "1200535" in ids
 
-			# Verify source diversity
 			sources = Set(s.source for s in stations)
 			@test "IPMA" in sources
 			@test "RHA" in sources
@@ -265,25 +255,20 @@ include("test_helpers.jl")
 			parsed = AtlanticCloud.JSON3.read(raw)
 			observations = [Observation(o) for o in parsed.data]
 
-			@test length(observations) == 9  # 3 stations × 3 hours
+			@test length(observations) == 9
 
-			# Verify multiple stations present
 			station_ids = Set(o.station_id for o in observations)
 			@test length(station_ids) == 3
 			@test "11217160" in station_ids
 			@test "1200535" in station_ids
 			@test "1200533" in station_ids
 
-			# Verify varied metric coverage
-			# 1200535 has pressure_hpa
 			lisboa_obs = filter(o -> o.station_id == "1200535", observations)
 			@test all(o -> o.pressure_hpa !== nothing, lisboa_obs)
 
-			# 11217160 has no pressure
 			azores_obs = filter(o -> o.station_id == "11217160", observations)
 			@test all(o -> o.pressure_hpa === nothing, azores_obs)
 
-			# 1200533 has only temperature and humidity
 			sagres_obs = filter(o -> o.station_id == "1200533", observations)
 			@test all(o -> o.temperature_c !== nothing, sagres_obs)
 			@test all(o -> o.wind_speed_kmh === nothing, sagres_obs)
@@ -309,12 +294,10 @@ include("test_helpers.jl")
 				default_fixture="test/fixtures/observations_empty.json",
 			)
 
-			# Known station returns its fixture
 			obs = get_observations(client, "11217160")
 			@test length(obs) == 49
 			@test obs[1].station_id == "11217160"
 
-			# Unknown station returns empty default
 			obs_empty = get_observations(client, "UNKNOWN")
 			@test length(obs_empty) == 0
 		end
@@ -325,10 +308,8 @@ include("test_helpers.jl")
 				error_stations=Set(["BADSTATION"]),
 			)
 
-			# Error station triggers AtlanticCloudError
 			@test_throws AtlanticCloudError get_observations(client, "BADSTATION")
 
-			# Non-error station still works
 			obs = get_observations(client, "GOODSTATION")
 			@test length(obs) == 0
 		end
@@ -359,11 +340,9 @@ include("test_helpers.jl")
 				["11217160", "1200535", "UNKNOWN"],
 				progress=false)
 
-			# 49 from observations.json + 9 from observations_multi.json + 0 from empty
 			@test length(obs) == 58
 			@test all(o -> o isa Observation, obs)
 
-			# Verify both stations present
 			ids = Set(o.station_id for o in obs)
 			@test "11217160" in ids
 			@test "1200535" in ids
@@ -383,8 +362,6 @@ include("test_helpers.jl")
 				default_fixture="test/fixtures/observations_empty.json",
 			)
 
-			# These filters don't actually change the mock response,
-			# but verify the call doesn't error with parameters
 			obs = get_observations_bulk(client, ["11217160"],
 				start_date=Date(2024, 1, 1),
 				end_date=Date(2024, 1, 3),
@@ -402,11 +379,10 @@ include("test_helpers.jl")
 				error_stations=Set(["BADSTATION"]),
 			)
 
-			# Should warn but continue, returning data from good stations
 			obs = get_observations_bulk(client,
 				["11217160", "BADSTATION", "11217160"],
 				progress=false)
-			@test length(obs) == 98  # 49 + 0 (skipped) + 49
+			@test length(obs) == 98
 		end
 
 		@testset "on_error = :throw" begin
@@ -430,7 +406,6 @@ include("test_helpers.jl")
 				error_stations=Set(["BADSTATION"]),
 			)
 
-			# Should silently skip, no warning
 			obs = get_observations_bulk(client,
 				["BADSTATION", "11217160"],
 				on_error=:skip,
@@ -454,33 +429,27 @@ include("test_helpers.jl")
 		raw = read("test/fixtures/stations_multi.json", String)
 		parsed = AtlanticCloud.JSON3.read(raw)
 		stations = [Station(s) for s in parsed.data]
-		s = stations[1]  # Santa Maria, Azores: lon=-25.0917, lat=36.9542
+		s = stations[1]
 
-		# Core trait
 		@test GI.isgeometry(Station) == true
 		@test GI.geomtrait(s) == GI.PointTrait()
 		@test GI.ncoord(GI.PointTrait(), s) == 2
 		@test GI.ngeom(GI.PointTrait(), s) == 0
 		@test GI.getgeom(GI.PointTrait(), s, 1) === nothing
 
-		# Coordinate access (index 1 = X/lon, index 2 = Y/lat)
 		@test GI.getcoord(GI.PointTrait(), s, 1) ≈ -25.0917
 		@test GI.getcoord(GI.PointTrait(), s, 2) ≈ 36.9542
 
-		# Convenience accessors
 		@test GI.x(GI.PointTrait(), s) ≈ -25.0917
 		@test GI.y(GI.PointTrait(), s) ≈ 36.9542
 
-		# check_geointerface_point helper
 		failures = check_geointerface_point(GI, s, -25.0917, 36.9542)
 		@test isempty(failures)
 
-		# Verify a different station (Lisboa: lon=-9.149722, lat=38.719078)
 		lisboa = stations[5]
 		@test GI.x(GI.PointTrait(), lisboa) ≈ -9.149722
 		@test GI.y(GI.PointTrait(), lisboa) ≈ 38.719078
 
-		# Verify all stations are valid geometries
 		@test all(s -> GI.geomtrait(s) == GI.PointTrait(), stations)
 
 	end
@@ -496,15 +465,12 @@ include("test_helpers.jl")
 		@test ncol(df) == 5
 		@test names(df) == ["station_id", "place", "latitude_deg", "longitude_deg", "source"]
 
-		# Verify types
 		@test eltype(df.latitude_deg) == Float64
 		@test eltype(df.longitude_deg) == Float64
 
-		# Verify data
 		@test df.station_id[1] == "11217160"
 		@test df.latitude_deg[1] ≈ 36.9542
 
-		# Verify nothing → missing conversion for nullable fields
 		@test nonmissingtype(eltype(df.station_id)) == String
 		@test nonmissingtype(eltype(df.place)) == String
 		@test nonmissingtype(eltype(df.source)) == String
@@ -546,18 +512,12 @@ include("test_helpers.jl")
 			"rel_humidity_pctg", "pressure_hpa"]
 		@test names(df) == expected_cols
 
-		# timestamp stays DateTime (non-nullable)
 		@test eltype(df.timestamp) == DateTime
 
-		# Verify nothing → missing for metrics
-		# 1200535 (rows 4–6) has pressure
 		@test !ismissing(df.pressure_hpa[4])
 		@test df.pressure_hpa[4] ≈ 1013.2
-
-		# 11217160 (rows 1–3) has no pressure
 		@test ismissing(df.pressure_hpa[1])
 
-		# 1200533 (rows 7–9) has only temperature and humidity
 		@test !ismissing(df.temperature_c[7])
 		@test ismissing(df.wind_speed_kmh[7])
 		@test ismissing(df.wind_direction_bin[7])
@@ -588,6 +548,235 @@ include("test_helpers.jl")
 			[:station_id, :place, :latitude_deg, :longitude_deg, :source],
 			6)
 		@test isempty(failures)
+
+	end
+
+	# -----------------------------------------------------------------------
+	# BR fixtures and routing mock (#21)
+	# -----------------------------------------------------------------------
+
+	@testset "BR fixtures — JSON structure" begin
+
+		@testset "stations_br.json" begin
+			raw = read("test/fixtures/stations_br.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 6
+
+			# All records have the extended 11-field shape
+			for s in parsed.data
+				@test haskey(s, :station_id)
+				@test haskey(s, :latitude_deg)
+				@test haskey(s, :longitude_deg)
+				@test haskey(s, :source)
+				@test haskey(s, :country)
+				@test haskey(s, :state)
+				@test haskey(s, :elevation_m)
+				@test haskey(s, :responsible)
+				@test haskey(s, :utc_offset)
+				@test haskey(s, :temporal_resolution_min)
+			end
+
+			# All are Brazilian
+			@test all(s -> s[:country] == "BR", parsed.data)
+
+			# Network diversity (one per network)
+			sources = Set(s[:source] for s in parsed.data)
+			@test "Telemetria" in sources
+			@test "CEMADEN" in sources
+			@test "ICEA" in sources
+			@test "INMET diário" in sources
+			@test "INMET subdiário" in sources
+			@test "Hidroweb diário" in sources
+		end
+
+		@testset "stations_pt_extended.json" begin
+			raw = read("test/fixtures/stations_pt_extended.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 4
+
+			# All PT, new fields present but null
+			for s in parsed.data
+				@test s[:country] == "PT"
+				@test s[:state] === nothing
+				@test s[:elevation_m] === nothing
+				@test s[:responsible] === nothing
+				@test s[:utc_offset] === nothing
+				@test s[:temporal_resolution_min] === nothing
+			end
+		end
+
+		@testset "observations_br_hourly.json" begin
+			raw = read("test/fixtures/observations_br_hourly.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 61
+
+			# Verify expected fields on every record
+			for o in parsed.data
+				@test haskey(o, :station_id)
+				@test haskey(o, :timestamp)
+				@test haskey(o, :precipitation_accum_mm)
+				@test haskey(o, :qc_flag)
+				@test haskey(o, :flagged)
+				@test haskey(o, :state)
+			end
+
+			# Single station, SP
+			@test all(o -> o[:station_id] == "350960101A", parsed.data)
+			@test all(o -> o[:state] == "SP", parsed.data)
+
+			# Both QC flag types present
+			flags = Set(o[:qc_flag] for o in parsed.data)
+			@test "PASS" in flags
+			@test "SUSPECT_INCOMPLETE_HOUR" in flags
+
+			# Both flagged values present
+			flagged_vals = Set(o[:flagged] for o in parsed.data)
+			@test true in flagged_vals
+			@test false in flagged_vals
+		end
+
+		@testset "observations_br_daily.json" begin
+			raw = read("test/fixtures/observations_br_daily.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 15
+
+			@test all(o -> o[:station_id] == "1442032", parsed.data)
+			@test all(o -> o[:state] == "MG", parsed.data)
+			@test all(o -> o[:qc_flag] == "PASS", parsed.data)
+		end
+
+		@testset "observations_br_state.json" begin
+			raw = read("test/fixtures/observations_br_state.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 20
+
+			# Multiple stations, all in AC
+			sids = Set(o[:station_id] for o in parsed.data)
+			@test length(sids) == 20
+			@test all(o -> o[:state] == "AC", parsed.data)
+		end
+
+		@testset "observations_br_empty.json" begin
+			raw = read("test/fixtures/observations_br_empty.json", String)
+			parsed = AtlanticCloud.JSON3.read(raw)
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 0
+		end
+
+	end
+
+	@testset "BR fixtures — backward compatibility" begin
+
+		# BR station fixtures parse through the existing Station constructor.
+		# The constructor ignores unknown fields via haskey guards, so the
+		# 6 new fields are silently skipped. This verifies no parse errors.
+		raw = read("test/fixtures/stations_br.json", String)
+		parsed = AtlanticCloud.JSON3.read(raw)
+		stations = [Station(s) for s in parsed.data]
+
+		@test length(stations) == 6
+		@test all(s -> s isa Station, stations)
+		@test stations[1].station_id == "02042051"
+		@test stations[1].latitude_deg ≈ -20.97888
+		@test stations[1].longitude_deg ≈ -42.50944
+		@test stations[1].source == "Telemetria"
+
+		# PT extended fixture also parses — new null fields are ignored
+		raw_pt = read("test/fixtures/stations_pt_extended.json", String)
+		parsed_pt = AtlanticCloud.JSON3.read(raw_pt)
+		pt_stations = [Station(s) for s in parsed_pt.data]
+
+		@test length(pt_stations) == 4
+		@test pt_stations[1].station_id == "11217160"
+		@test pt_stations[1].source == "IPMA"
+
+	end
+
+	@testset "Routing mock client" begin
+
+		@testset "routes /stations requests" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_br.json",
+				observations_fixture="test/fixtures/observations.json",
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+
+			stations = get_stations(client)
+			@test length(stations) == 6
+			@test stations[1].station_id == "02042051"
+		end
+
+		@testset "routes /observations requests to PT fixture" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_multi.json",
+				observations_fixture="test/fixtures/observations.json",
+			)
+
+			obs = get_observations(client, "11217160")
+			@test length(obs) == 49
+			@test obs[1].station_id == "11217160"
+		end
+
+		@testset "routes /observations/br to BR fixture" begin
+			# Cannot test via get_br_observations yet (function doesn't exist),
+			# so test the mock routing directly via _get.
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_multi.json",
+				observations_fixture="test/fixtures/observations.json",
+				br_fixture="test/fixtures/observations_br_hourly.json",
+			)
+
+			raw = AtlanticCloud._get(client, "/meteorology/api/v1/observations/br?resolution=hourly&station_id=350960101A")
+			parsed = AtlanticCloud._parse(raw, "/test")
+			@test haskey(parsed, :data)
+			@test length(parsed.data) == 61
+		end
+
+		@testset "BR station-specific fixture routing" begin
+			client = make_routing_mock_client(
+				br_fixture="test/fixtures/observations_br_empty.json",
+				br_station_fixtures=Dict(
+					"350960101A" => "test/fixtures/observations_br_hourly.json",
+					"1442032" => "test/fixtures/observations_br_daily.json",
+				),
+			)
+
+			# Known station gets its fixture
+			raw1 = AtlanticCloud._get(client, "/meteorology/api/v1/observations/br?resolution=hourly&station_id=350960101A")
+			parsed1 = AtlanticCloud._parse(raw1, "/test")
+			@test length(parsed1.data) == 61
+
+			# Different station gets its fixture
+			raw2 = AtlanticCloud._get(client, "/meteorology/api/v1/observations/br?resolution=daily&station_id=1442032")
+			parsed2 = AtlanticCloud._parse(raw2, "/test")
+			@test length(parsed2.data) == 15
+
+			# Unknown station falls back to default BR fixture
+			raw3 = AtlanticCloud._get(client, "/meteorology/api/v1/observations/br?resolution=hourly&station_id=UNKNOWN")
+			parsed3 = AtlanticCloud._parse(raw3, "/test")
+			@test length(parsed3.data) == 0
+		end
+
+		@testset "error stations work across paths" begin
+			client = make_routing_mock_client(
+				stations_fixture="test/fixtures/stations_multi.json",
+				observations_fixture="test/fixtures/observations_empty.json",
+				br_fixture="test/fixtures/observations_br_empty.json",
+				error_stations=Set(["BADSTATION"]),
+			)
+
+			# Error on PT path
+			@test_throws AtlanticCloudError get_observations(client, "BADSTATION")
+
+			# Error on BR path
+			@test_throws AtlanticCloudError AtlanticCloud._get(client,
+				"/meteorology/api/v1/observations/br?resolution=hourly&station_id=BADSTATION")
+		end
 
 	end
 
