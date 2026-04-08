@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://aircentre.github.io/AtlanticCloud.jl/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological and rainfall data across Portugal and Brazil.
+A Julia client for the [Atlantic Cloud](https://services.aircentre.org/access/docs/meteorology) API — meteorological and rainfall data from 21,700+ stations across Portugal and Brazil. Powered by the [AIR Centre](https://www.aircentre.org) and its Atlantic basin partners.
 
 ![Brazilian Rainfall Showcase](examples/figures/brazil_rainfall.png)
 
