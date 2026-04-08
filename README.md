@@ -6,7 +6,7 @@
 
 A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological and rainfall data across Portugal and Brazil.
 
-![Atlantic Weather Showcase](examples/figures/atlantic_weather.png)
+![Brazilian Rainfall Showcase](examples/figures/brazil_rainfall.png)
 
 ## Features
 
@@ -19,18 +19,9 @@ A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud AP
 
 ## Installation
 
-Once registered with the Julia General Registry:
-
 ```julia
 using Pkg
 Pkg.add("AtlanticCloud")
-```
-
-For now, install directly from the repository:
-
-```julia
-using Pkg
-Pkg.add(url="https://github.com/AIRCentre/AtlanticCloud.jl")
 ```
 
 ## Authentication
@@ -87,6 +78,7 @@ bulk_obs = get_observations_bulk(client, ids[1:5],
 df_bulk = to_dataframe(bulk_obs)
 ```
 
+![Portuguese Weather Showcase](examples/figures/atlantic_weather.png)
 
 ## Brazilian rainfall data
 
