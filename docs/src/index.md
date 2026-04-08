@@ -1,20 +1,21 @@
 # AtlanticCloud.jl
 
-A Julia client for the [AIR Centre](https://www.aircentre.org) Atlantic Cloud API, providing access to meteorological station data and observations across the Atlantic region.
+A Julia client for the [Atlantic Cloud](https://www.aircentre.org/atlantic-cloud/) API — meteorological and rainfall data from 21,700+ stations across Portugal and Brazil. Powered by the [AIR Centre](https://www.aircentre.org) and its Atlantic basin partners.
 
 ## Features
 
-- **Station metadata** — query 340+ meteorological stations across Portugal (mainland, Azores, Madeira).
-- **Hourly observations** — access 5+ years of hourly temperature, wind, humidity, radiation, precipitation, and pressure data.
+- **21,700+ stations** across Portugal and Brazil, from 6 observation networks.
+- **Portuguese observations** — 5+ years of hourly data: temperature, wind, humidity, radiation, precipitation, and pressure.
+- **Brazilian rainfall** — 140 years (1885–2025) of hourly and daily precipitation from the UNIPLU-BR dataset, with quality control flags.
 - **Bulk fetch** — retrieve observations for multiple stations in a single call with configurable error handling.
-- **DataFrame integration** — convert results to DataFrames for analysis and plotting.
-- **JuliaGeo compatible** — stations implement [GeoInterface.jl](https://github.com/JuliaGeo/GeoInterface.jl) `PointTrait` for seamless use with GeoMakie, GeometryOps, and the wider JuliaGeo ecosystem.
+- **DataFrame integration** — convert results directly to DataFrames for analysis and plotting.
+- **JuliaGeo compatible** — stations implement [GeoInterface.jl](https://github.com/JuliaGeo/GeoInterface.jl) `PointTrait` for use with GeoMakie, GeometryOps, NaturalEarth.jl, and the wider JuliaGeo ecosystem.
 
 ## Installation
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/AIRCentre/AtlanticCloud.jl")
+Pkg.add("AtlanticCloud")
 ```
 
 ## Authentication
@@ -33,11 +34,12 @@ Or pass it directly:
 client = AtlanticCloudClient(api_key="your_key_here")
 ```
 
-## Quick start
+## Quick start — Portuguese weather data
 
 ```julia
 using AtlanticCloud
 using Dates
+using DataFrames
 
 # Create a client (reads ATLANTICCLOUD_API_KEY from environment)
 client = AtlanticCloudClient()
@@ -60,7 +62,6 @@ obs_temp = get_observations(client, "11217160",
     metrics=["temperature_c", "wind_speed_kmh"])
 
 # Convert to DataFrame
-using DataFrames
 df = to_dataframe(obs)
 
 # Bulk fetch across multiple stations
@@ -70,7 +71,38 @@ bulk_obs = get_observations_bulk(client, all_ids[1:5],
     end_date=Date(2024, 1, 7))
 ```
 
-## Available metrics
+## Quick start — Brazilian rainfall data
+
+```julia
+# All Brazilian stations
+br_stations = get_stations(client, country="BR")
+
+# Filter by state
+sp_stations = get_stations(client, country="BR", state="SP")
+
+# Hourly rainfall for a state
+br_obs = get_br_observations(client,
+    resolution="hourly", state="SP",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31))
+
+# Daily rainfall for a single station
+daily = get_br_observations(client,
+    resolution="daily", station_id="1442032",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 6, 30))
+
+# Only clean (non-suspect) observations
+clean = get_br_observations(client,
+    resolution="hourly", state="MG",
+    start_date=Date(2020, 1, 1),
+    end_date=Date(2020, 1, 31),
+    flagged=false)
+
+df_br = to_dataframe(br_obs)
+```
+
+## Available metrics — Portuguese observations
 
 | Metric | Unit | Notes |
 |--------|------|-------|
@@ -82,7 +114,29 @@ bulk_obs = get_observations_bulk(client, all_ids[1:5],
 | `precipitation_accum_mm` | mm | Accumulated precipitation |
 | `pressure_hpa` | hPa | Atmospheric pressure (limited station coverage) |
 
+## Available metrics — Brazilian observations
+
+| Metric | Unit | Notes |
+|--------|------|-------|
+| `precipitation_accum_mm` | mm | Accumulated precipitation |
+| `qc_flag` | string | `"PASS"` or `"SUSPECT_*"` |
+| `flagged` | boolean | `true` if observation is suspect |
+| `state` | string | Two-letter Brazilian state code |
+
+## GeoInterface integration
+
+Stations implement `PointTrait`, so they work directly with JuliaGeo packages:
+
+```julia
+import GeoInterface as GI
+
+s = stations[1]
+GI.geomtrait(s)              # PointTrait()
+GI.x(GI.PointTrait(), s)     # longitude
+GI.y(GI.PointTrait(), s)     # latitude
+```
+
 ## API documentation
 
-- Meteorology: [services.aircentre.org/access/docs/meteorology](https://services.aircentre.org/access/docs/meteorology)
+- Meteorology API: [services.aircentre.org/access/docs/meteorology](https://services.aircentre.org/access/docs/meteorology)
 - EO Catalog: [eo-catalog.ac-az1.aircentre.org/api/v1/api](https://eo-catalog.ac-az1.aircentre.org/api/v1/api) (coming soon)
