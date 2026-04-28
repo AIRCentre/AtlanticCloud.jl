@@ -1,6 +1,7 @@
 name = "AtlanticCloud"
 uuid = "3869560d-4610-43ef-8129-3cc96c3d99f7"
 authors = ["João Pinelo <jp@joaopinelo.com>"]
+description = "Julia client for Atlantic Cloud data services — operated by the AIR Centre and Atlantic basin partners."
 version = "0.3.0"
 
 [deps]

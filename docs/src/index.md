@@ -1,12 +1,17 @@
 # AtlanticCloud.jl
 
-A Julia client for the [Atlantic Cloud](https://www.aircentre.org/atlantic-cloud/) API — meteorological and rainfall data from 21,700+ stations across Portugal and Brazil. Powered by the [AIR Centre](https://www.aircentre.org) and its Atlantic basin partners.
+AtlanticCloud.jl is a Julia client for [Atlantic Cloud](https://www.aircentre.org/atlantic-cloud/) data services — operated by the [AIR Centre](https://www.aircentre.org) and Atlantic basin partners — covering meteorology and rainfall, the EO Catalog, and Internal Waves Service detections.
 
-## Features
+## Data domains
 
-- **21,700+ stations** across Portugal and Brazil, from 6 observation networks.
-- **Portuguese observations** — 5+ years of hourly data: temperature, wind, humidity, radiation, precipitation, and pressure.
-- **Brazilian rainfall** — 140 years (1885–2025) of hourly and daily precipitation from the UNIPLU-BR dataset, with quality control flags.
+- **Meteorology and rainfall** — *implemented*. 21,700+ stations across Portugal and Brazil, from 6 observation networks. Portuguese observations cover 5+ years of hourly data (temperature, wind, humidity, radiation, precipitation, pressure). Brazilian rainfall covers 140 years (1885–2025) of hourly and daily precipitation from the [UNIPLU-BR dataset](https://doi.org/10.5281/zenodo.19427080), with quality control flags.
+- **EO Catalog** — *planned, pending access grant*. Earth observation data received at the AIR Centre's DRS Station in the Azores. Examples of current collections: MODIS LST, MYD01, chlor_a, cloudmask, cloudtop. See the [EO Catalog browser](https://services.aircentre.org/eo-catalog/collections).
+- **Internal Waves Service** — *planned, pending public IWS API*. Global detections of oceanic internal solitary waves from Sentinel-1 SAR Wave Mode imagery. See the [IWS service page](https://www.aircentre.org/internal-waves-service/) and the [public map](https://services.aircentre.org/iw/map).
+
+The list above is illustrative of the package's scope. It is not exhaustive — additional Atlantic Cloud data services may be added.
+
+## Capabilities
+
 - **Bulk fetch** — retrieve observations for multiple stations in a single call with configurable error handling.
 - **DataFrame integration** — convert results directly to DataFrames for analysis and plotting.
 - **JuliaGeo compatible** — stations implement [GeoInterface.jl](https://github.com/JuliaGeo/GeoInterface.jl) `PointTrait` for use with GeoMakie, GeometryOps, NaturalEarth.jl, and the wider JuliaGeo ecosystem.
@@ -138,5 +143,7 @@ GI.y(GI.PointTrait(), s)     # latitude
 
 ## API documentation
 
-- Meteorology API: [services.aircentre.org/access/docs/meteorology](https://services.aircentre.org/access/docs/meteorology)
-- EO Catalog: [eo-catalog.ac-az1.aircentre.org/api/v1/api](https://eo-catalog.ac-az1.aircentre.org/api/v1/api) (coming soon)
+- **Meteorology API:** [services.aircentre.org/access/docs/meteorology](https://services.aircentre.org/access/docs/meteorology)
+- **EO Catalog:** [services.aircentre.org/eo-catalog/collections](https://services.aircentre.org/eo-catalog/collections) (browser); API access pending.
+<!-- TODO: add IWS API URL here once the public IWS API exists. See issue #31. -->
+- **Internal Waves Service:** [aircentre.org/internal-waves-service](https://www.aircentre.org/internal-waves-service/) (service page) and [public map](https://services.aircentre.org/iw/map); API forthcoming.
